@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk.Worker">
+
+    <PropertyGroup>
+        <TargetFramework>net9.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <UserSecretsId>dotnet-AsynchronousVoting.Worker2-4d136349-7091-476e-b609-9f5775957630</UserSecretsId>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="MassTransit.Extensions.DependencyInjection" Version="7.3.1" />
+        <PackageReference Include="MassTransit.RabbitMQ" Version="9.0.0-develop.18" />
+        <PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.1"/>
+    </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\Voting.Application\Voting.Application.csproj" />
+      <ProjectReference Include="..\Voting.Domain\Voting.Domain.csproj" />
+      <ProjectReference Include="..\Voting.Infrastructure\Voting.Infrastructure.csproj" />
+    </ItemGroup>
+</Project>
