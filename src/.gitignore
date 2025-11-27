@@ -1,0 +1,61 @@
+## Ignore Visual Studio
+.vs/
+*.dbmdl
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+## Ignore build results
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Aa][Rr][Mm]/
+build/
+bld/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+*.log
+
+## Ignore NuGet packages
+*.nupkg
+*.snupkg
+*.nuspec
+packages/
+*.nuget.props
+*.nuget.targets
+# Uncomment if using NuGet Restore outside MSBuild
+# *.nuget/
+.nuget/
+
+## Ignore others (local/test/deployment)
+TestResults/
+out/
+publish/
+node_modules/
+jspm_packages/
+bower_components/
+wwwroot/
+_Dependencies/
+
+## Ignore Rider/JetBrains IDE
+.idea/
+*.DotSettings.user
+.idea/*
+
+## Ignore Visual Studio Code
+.vscode/
+*.code-workspace
+
+## Ignore OS files
+*.DS_Store
+Thumbs.db
+
+## Ignore user secrets (local development)
+secrets.json
+
+## Ignore Configuration (local/dev)
+appsettings.Development.json
+appsettings.json
