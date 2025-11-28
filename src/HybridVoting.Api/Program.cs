@@ -3,9 +3,11 @@ using HybridVoting.Api.Hubs;
 using HybridVoting.Api.Messaging.Consumers;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
+using Voting.Application;
 using Voting.Application.Interfaces;
 using Voting.Infrastructure.Database;
-using Voting.Application.Services; 
+using Voting.Application.Services;
+using Voting.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -17,6 +19,9 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+
+builder.Services.AddInfrastructureServices(builder.Configuration);
+builder.Services.AddApplicationServices();
 
 // EF Core – dopasuj connection string i provider do swojego
 builder.Services.AddDbContext<VotingDbContext>(options =>
