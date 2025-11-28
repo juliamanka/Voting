@@ -21,6 +21,8 @@ public class VoteRecordedEventConsumer : IConsumer<VoteRecordedEvent>
 
     public async Task Consume(ConsumeContext<VoteRecordedEvent> context)
     {
+        Console.WriteLine($"[SignalR] VoteRecordedEvent received for poll {context.Message.PollId}, option {context.Message.PollOptionId}");
+        
         var pollId = context.Message.PollId;
 
         var pollResults =

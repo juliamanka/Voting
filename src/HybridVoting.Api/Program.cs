@@ -1,100 +1,178 @@
+using System.Text.Json;
 using HybridVoting.Api;
 using HybridVoting.Api.Hubs;
 using HybridVoting.Api.Messaging.Consumers;
 using MassTransit;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
+using Prometheus;
+using Serilog;
+using Voting.Api.Common;
 using Voting.Application;
 using Voting.Application.Interfaces;
-using Voting.Application.Services;
 using Voting.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // ---------------------------
-// KONFIGURACJA SERWISÓW
+// Serilog
 // ---------------------------
+Log.Logger = new LoggerConfiguration()
+    .ReadFrom.Configuration(builder.Configuration)
+    .Enrich.FromLogContext()
+    .WriteTo.Console()
+    .CreateLogger();
 
-// Controllers + Swagger
-builder.Services.AddControllers();
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Host.UseSerilog();
 
-builder.Services.AddInfrastructureServices(builder.Configuration);
-builder.Services.AddApplicationServices();
+// ---------------------------
+// CORS
+// ---------------------------
+const string CorsPolicy = "AllowFrontend";
 
-// SignalR
-builder.Services.AddSignalR();
-
-// CORS – dla Angulara (domyślnie http://localhost:4200, ale możesz dać z appsettings: FrontendUrl)
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowFrontend", policy =>
+    options.AddPolicy(CorsPolicy, policy =>
     {
         policy
-            .WithOrigins(builder.Configuration["FrontendUrl"] ?? "http://localhost:4200")
+            .WithOrigins("http://localhost:4200") // albo z configa: builder.Configuration["FrontendUrl"]
             .AllowAnyHeader()
             .AllowAnyMethod()
             .AllowCredentials();
     });
 });
 
-// IPollService – jeśli masz implementację serwisu do wyników (używaną przez VoteRecordedEventConsumer)
-// Jeżeli już rejestrujesz PollService w innym miejscu/projekcie, tę linię możesz usunąć lub dostosować.
-builder.Services.AddScoped<IPollService, PollService>();
+// ---------------------------
+// MVC, Swagger
+// ---------------------------
+builder.Services.AddControllers();
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
 
-// HYBRYDOWA implementacja IVoteNotifier
-builder.Services.AddScoped<IVoteNotifier, HybridVoteNotifier>();
+// ---------------------------
+// Application / Infrastructure
+// ---------------------------
+builder.Services.AddApplicationServices();
+builder.Services.AddInfrastructureServices(builder.Configuration);
 
-// MassTransit + RabbitMQ – tylko VoteRecordedEventConsumer
-builder.Services.AddMassTransit(cfg =>
+// ---------------------------
+// SignalR + global exception handling
+// ---------------------------
+builder.Services.AddSignalR();
+builder.Services.AddGlobalExceptionHandling();
+
+// ---------------------------
+// OpenTelemetry
+// ---------------------------
+const string serviceName = "HybridVoting.Api";
+var otlpEndpoint = builder.Configuration["OtlpExporter:Endpoint"];
+
+builder.Services.AddOpenTelemetry()
+    .ConfigureResource(resource => resource.AddService(serviceName))
+    .WithTracing(tracing => tracing
+        .AddAspNetCoreInstrumentation()
+        .AddEntityFrameworkCoreInstrumentation()
+        .AddHttpClientInstrumentation()
+        .AddSource(serviceName)
+        .AddOtlpExporter(opts => opts.Endpoint = new Uri(otlpEndpoint!))
+        .AddConsoleExporter())
+    .WithMetrics(metrics => metrics
+        .AddAspNetCoreInstrumentation()
+        .AddRuntimeInstrumentation()
+        .AddProcessInstrumentation()
+        .AddOtlpExporter(opts => opts.Endpoint = new Uri(otlpEndpoint!))
+        .AddConsoleExporter());
+
+// ---------------------------
+// HealthChecks
+// ---------------------------
+builder.Services.AddHealthChecks()
+    .AddMySql(
+        connectionString: builder.Configuration.GetConnectionString("DefaultConnection"),
+        name: "mysql");
+
+// ---------------------------
+// RabbitMQ / MassTransit
+// ---------------------------
+var rabbitSection = builder.Configuration.GetSection("RabbitMq");
+if (!rabbitSection.Exists())
+    throw new InvalidOperationException("No section 'RabbitMq' in appsettings.json.");
+
+var rabbitHost = rabbitSection["Host"] ?? throw new InvalidOperationException("RabbitMq:Host is missing");
+var rabbitUser = rabbitSection["Username"] ?? throw new InvalidOperationException("RabbitMq:Username is missing");
+var rabbitPass = rabbitSection["Password"] ?? throw new InvalidOperationException("RabbitMq:Password is missing");
+
+builder.Services.AddMassTransit(x =>
 {
-    cfg.AddConsumer<VoteRecordedEventConsumer>();
+    x.AddConsumer<VoteRecordedEventConsumer>();
 
-    cfg.UsingRabbitMq((context, busCfg) =>
+    x.UsingRabbitMq((context, cfg) =>
     {
-        var host = builder.Configuration["RabbitMq:Host"] ?? "localhost";
-        var username = builder.Configuration["RabbitMq:Username"] ?? "guest";
-        var password = builder.Configuration["RabbitMq:Password"] ?? "guest";
-
-        busCfg.Host(host, "/", h =>
+        cfg.Host(rabbitHost, "/", h =>
         {
-            h.Username(username);
-            h.Password(password);
+            h.Username(rabbitUser);
+            h.Password(rabbitPass);
         });
 
-        // Endpoint do obsługi VoteRecordedEvent
-        busCfg.ReceiveEndpoint("vote-recorded-events", e =>
+        cfg.ReceiveEndpoint("vote-recorded-events", e =>
         {
             e.ConfigureConsumer<VoteRecordedEventConsumer>(context);
         });
     });
 });
 
-// Opcjonalnie, jeśli chcesz używać MassTransit HostedService
-// builder.Services.AddMassTransitHostedService();
+// ---------------------------
+// Hybrydowa implementacja IVoteNotifier
+// ---------------------------
+builder.Services.AddScoped<IVoteNotifier, HybridVoteNotifier>();
 
 var app = builder.Build();
 
 // ---------------------------
-// MIDDLEWARE PIPELINE
+// Middleware pipeline
 // ---------------------------
-
-
-    app.UseSwagger();
-    app.UseSwaggerUI();
-
+app.UseSwagger();
+app.UseSwaggerUI();
 
 app.UseHttpsRedirection();
 
-// CORS przed routingiem
-app.UseCors("AllowFrontend");
+app.UseCors(CorsPolicy);
 
-// Jeśli dodasz autoryzację, to tu:
-// app.UseAuthentication();
+app.UseGlobalExceptionHandling();
+
 app.UseAuthorization();
 
-app.MapControllers();
+// Health checks – JSON output (ładnie pod Grafanę / K8s probes itd.)
+app.MapHealthChecks("/health", new HealthCheckOptions
+{
+    ResponseWriter = async (context, report) =>
+    {
+        context.Response.ContentType = "application/json; charset=utf-8";
 
-// SignalR hub dla wyników głosowania
+        var response = new
+        {
+            status = report.Status.ToString(),
+            checks = report.Entries.Select(e => new
+            {
+                name = e.Key,
+                status = e.Value.Status.ToString(),
+                description = e.Value.Description,
+                error = e.Value.Exception?.Message
+            })
+        };
+
+        await context.Response.WriteAsync(JsonSerializer.Serialize(response));
+    }
+});
+
+// Prometheus metrics
+app.UseHttpMetrics();
+app.MapMetrics("/metrics");
+
+// API + SignalR
+app.MapControllers();
 app.MapHub<ResultsHub>("/hubs/results");
 
 app.Run();
