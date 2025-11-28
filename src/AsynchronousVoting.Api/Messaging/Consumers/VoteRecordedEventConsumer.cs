@@ -4,6 +4,8 @@ using Microsoft.AspNetCore.SignalR;
 using Voting.Application.DTOs;
 using Voting.Application.Interfaces;
 
+namespace AsynchronousVoting.Api.Messaging.Consumers;
+
 public class VoteRecordedEventConsumer : IConsumer<VoteRecordedEvent>
 {
     private readonly IPollService _voteResultsService;

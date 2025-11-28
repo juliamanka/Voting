@@ -2,10 +2,8 @@ using HybridVoting.Api;
 using HybridVoting.Api.Hubs;
 using HybridVoting.Api.Messaging.Consumers;
 using MassTransit;
-using Microsoft.EntityFrameworkCore;
 using Voting.Application;
 using Voting.Application.Interfaces;
-using Voting.Infrastructure.Database;
 using Voting.Application.Services;
 using Voting.Infrastructure;
 
@@ -22,15 +20,6 @@ builder.Services.AddSwaggerGen();
 
 builder.Services.AddInfrastructureServices(builder.Configuration);
 builder.Services.AddApplicationServices();
-
-// EF Core – dopasuj connection string i provider do swojego
-builder.Services.AddDbContext<VotingDbContext>(options =>
-{
-    var connectionString = builder.Configuration.GetConnectionString("VotingDb");
-    options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString));
-    // jeśli używasz innego providera (np. SQL Server), podmień tu:
-    // options.UseSqlServer(connectionString);
-});
 
 // SignalR
 builder.Services.AddSignalR();
@@ -89,11 +78,10 @@ var app = builder.Build();
 // MIDDLEWARE PIPELINE
 // ---------------------------
 
-if (app.Environment.IsDevelopment())
-{
+
     app.UseSwagger();
     app.UseSwaggerUI();
-}
+
 
 app.UseHttpsRedirection();
 

@@ -1,13 +1,11 @@
 using Asynchronous.Api.Requests;
-using MassTransit;
 using Microsoft.AspNetCore.Mvc;
-using Voting.Application.DTOs;
 using Voting.Application.Interfaces;
 
 namespace AsynchronousVoting.Api.Controllers;
 
 [ApiController]
-[Route("api/[controller]")]
+[Route("api/vote")]
 public class VotesController : ControllerBase
 {
     private readonly IVoteNotifier _voteNotifier;

@@ -1,4 +1,4 @@
-namespace AsynchronousVoting.Worker2;
+namespace AsynchronousVoting.Worker;
 
 public class Worker : BackgroundService
 {

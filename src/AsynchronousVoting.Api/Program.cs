@@ -1,6 +1,7 @@
 ﻿using System.Text.Json;
 using Asynchronous.Api.Hubs;
 using AsynchronousVoting.Api;
+using AsynchronousVoting.Api.Messaging.Consumers;
 using MassTransit;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using OpenTelemetry.Resources;

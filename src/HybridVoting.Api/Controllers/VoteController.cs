@@ -10,7 +10,7 @@ using Voting.Application.Interfaces;
 namespace HybridVoting.Api.Controllers;
 
 [ApiController]
-[Route("api/[controller]")]
+[Route("api/vote")]
 public class VotesController : ControllerBase
 {
     private readonly VotingDbContext _dbContext;
@@ -29,7 +29,6 @@ public class VotesController : ControllerBase
         [FromBody] CastVoteRequest request,
         CancellationToken cancellationToken)
     {
-        // 1. Walidacja ankiety i opcji (opcjonalnie)
         var poll = await _dbContext.Polls
             .Include(p => p.Options)
             .FirstOrDefaultAsync(p => p.PollId == request.PollId, cancellationToken);
@@ -41,7 +40,6 @@ public class VotesController : ControllerBase
         if (option is null)
             return BadRequest($"Option {request.PollOptionId} does not belong to poll {request.PollId}.");
 
-        // 2. SYNCHRONICZNY zapis głosu do DB
         var vote = new VoteRecord
         {
             VoteId = Guid.NewGuid(),
@@ -54,10 +52,8 @@ public class VotesController : ControllerBase
         _dbContext.Votes.Add(vote);
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        // 3. ASYNCHRONICZNE powiadomienie – hybryda:
         await _voteNotifier.NotifyVoteAsync(request.PollId, request.PollOptionId, request.UserId, cancellationToken);
 
-        // 4. Odpowiedź dla klienta
         return Accepted(new
         {
             pollId = request.PollId,

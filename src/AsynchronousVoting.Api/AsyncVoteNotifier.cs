@@ -1,5 +1,5 @@
-using Asynchronous.Api.Requests;
 using MassTransit;
+using Voting.Application.DTOs;
 using Voting.Application.Interfaces;
 
 namespace AsynchronousVoting.Api;
@@ -15,13 +15,7 @@ public class AsyncVoteNotifier : IVoteNotifier
 
     public Task NotifyVoteAsync(Guid pollId, Guid optionId, string? userId, CancellationToken cancellationToken = default)
     {
-        var cmd = new CastVoteRequest()
-        {
-            PollId = pollId,
-            PollOptionId = optionId,
-            UserId = userId
-        };
-
+        var cmd = new CastVoteCommand(pollId, optionId, userId, DateTime.Now);
         return _publishEndpoint.Publish(cmd, cancellationToken);
     }
 }

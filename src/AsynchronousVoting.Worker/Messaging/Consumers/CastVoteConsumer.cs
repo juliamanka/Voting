@@ -10,14 +10,19 @@ namespace AsynchronousVoting.Worker.Messaging.Consumers;
 public class CastVoteConsumer : IConsumer<CastVoteCommand>
 {
     private readonly VotingDbContext _dbContext;
+    private readonly ILogger<CastVoteConsumer> _logger;
 
-    public CastVoteConsumer(VotingDbContext dbContext)
+    public CastVoteConsumer(VotingDbContext dbContext, ILogger<CastVoteConsumer> logger)
     {
         _dbContext = dbContext;
+        _logger = logger;
     }
 
     public async Task Consume(ConsumeContext<CastVoteCommand> context)
     {
+        _logger.LogInformation("Received CastVoteCommand: PollId={PollId}, OptionId={OptionId}",
+            context.Message.PollId, context.Message.PollOptionId);
+        
         var msg = context.Message;
         
          var optionExists = await _dbContext.PollOptions
