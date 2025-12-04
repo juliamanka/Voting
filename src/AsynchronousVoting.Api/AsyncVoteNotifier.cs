@@ -15,7 +15,7 @@ public class AsyncVoteNotifier : IVoteNotifier
 
     public Task NotifyVoteAsync(Guid pollId, Guid optionId, string? userId, CancellationToken cancellationToken = default)
     {
-        var cmd = new CastVoteCommand(pollId, optionId, userId, DateTime.Now);
+        var cmd = new CastVoteCommand(pollId, optionId, userId, DateTime.UtcNow);
         return _publishEndpoint.Publish(cmd, cancellationToken);
     }
 }

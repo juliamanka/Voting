@@ -1,18 +1,17 @@
 ﻿using System.Text.Json;
-using Asynchronous.Api.Hubs;
 using AsynchronousVoting.Api;
+using AsynchronousVoting.Api.Hubs;
 using AsynchronousVoting.Api.Messaging.Consumers;
 using MassTransit;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
 using Serilog;
 using Voting.Api.Common;
 using Voting.Application;
-using Voting.Infrastructure;
-using Prometheus;
-using OpenTelemetry.Trace;
-using OpenTelemetry.Metrics;
 using Voting.Application.Interfaces;
+using Voting.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -50,23 +49,28 @@ builder.Services.AddSignalR();
 builder.Services.AddGlobalExceptionHandling();
 
 const string serviceName = "AsynchronousVoting.Api";
-var otlpEndpoint = builder.Configuration["OtlpExporter:Endpoint"];
 
-builder.Services.AddOpenTelemetry()
-    .ConfigureResource(resource => resource.AddService(serviceName))
-    .WithTracing(tracing => tracing
+var otel = builder.Services.AddOpenTelemetry();
+otel.ConfigureResource(resource =>
+    resource.AddService(serviceName));
+
+otel.WithMetrics(metrics =>
+{
+    metrics
         .AddAspNetCoreInstrumentation()
-        .AddEntityFrameworkCoreInstrumentation()
+        .AddMeter("AsynchronousVoting.Api.Metrics")
         .AddHttpClientInstrumentation()
-        .AddSource(serviceName)
-        .AddOtlpExporter(opts => opts.Endpoint = new Uri(otlpEndpoint!))
-        .AddConsoleExporter())
-    .WithMetrics(metrics => metrics
-        .AddAspNetCoreInstrumentation()
         .AddRuntimeInstrumentation()
         .AddProcessInstrumentation()
-        .AddOtlpExporter(opts => opts.Endpoint = new Uri(otlpEndpoint!))
-        .AddConsoleExporter());
+        .AddPrometheusExporter();
+});
+otel.WithTracing(tracing =>
+{
+    tracing
+        .AddAspNetCoreInstrumentation()
+        .AddEntityFrameworkCoreInstrumentation()
+        .AddHttpClientInstrumentation();
+});
 
 builder.Services.AddHealthChecks()
     .AddMySql(
@@ -94,7 +98,7 @@ builder.Services.AddMassTransit(x =>
             h.Password(rabbitPass);
         });
 
-        cfg.ReceiveEndpoint("vote-recorded-events", e =>
+        cfg.ReceiveEndpoint("async-vote-recorded-events", e =>
         {
             e.ConfigureConsumer<VoteRecordedEventConsumer>(context);
         });
@@ -131,12 +135,11 @@ app.MapHealthChecks("/health", new HealthCheckOptions
                 error = e.Value.Exception?.Message
             })
         };
-
         await context.Response.WriteAsync(JsonSerializer.Serialize(response));
+
     }
 });
-app.UseHttpMetrics();
-app.MapMetrics("/metrics");
+app.UseOpenTelemetryPrometheusScrapingEndpoint();
 app.MapControllers();
 app.MapHub<ResultsHub>("/hubs/results");
 

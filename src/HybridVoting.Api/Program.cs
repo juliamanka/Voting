@@ -7,7 +7,6 @@ using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
-using Prometheus;
 using Serilog;
 using Voting.Api.Common;
 using Voting.Application;
@@ -67,23 +66,28 @@ builder.Services.AddGlobalExceptionHandling();
 // OpenTelemetry
 // ---------------------------
 const string serviceName = "HybridVoting.Api";
-var otlpEndpoint = builder.Configuration["OtlpExporter:Endpoint"];
 
-builder.Services.AddOpenTelemetry()
-    .ConfigureResource(resource => resource.AddService(serviceName))
-    .WithTracing(tracing => tracing
+var otel = builder.Services.AddOpenTelemetry();
+otel.ConfigureResource(resource =>
+    resource.AddService(serviceName));
+
+otel.WithMetrics(metrics =>
+{
+    metrics
         .AddAspNetCoreInstrumentation()
-        .AddEntityFrameworkCoreInstrumentation()
+        .AddMeter("Hybrid.Api.Metrics") 
         .AddHttpClientInstrumentation()
-        .AddSource(serviceName)
-        .AddOtlpExporter(opts => opts.Endpoint = new Uri(otlpEndpoint!))
-        .AddConsoleExporter())
-    .WithMetrics(metrics => metrics
-        .AddAspNetCoreInstrumentation()
         .AddRuntimeInstrumentation()
         .AddProcessInstrumentation()
-        .AddOtlpExporter(opts => opts.Endpoint = new Uri(otlpEndpoint!))
-        .AddConsoleExporter());
+        .AddPrometheusExporter();
+});
+otel.WithTracing(tracing =>
+{
+    tracing
+        .AddAspNetCoreInstrumentation()
+        .AddEntityFrameworkCoreInstrumentation()
+        .AddHttpClientInstrumentation();
+});
 
 // ---------------------------
 // HealthChecks
@@ -116,7 +120,7 @@ builder.Services.AddMassTransit(x =>
             h.Password(rabbitPass);
         });
 
-        cfg.ReceiveEndpoint("vote-recorded-events", e =>
+        cfg.ReceiveEndpoint("hybrid-vote-recorded-events", e =>
         {
             e.ConfigureConsumer<VoteRecordedEventConsumer>(context);
         });
@@ -168,8 +172,7 @@ app.MapHealthChecks("/health", new HealthCheckOptions
 });
 
 // Prometheus metrics
-app.UseHttpMetrics();
-app.MapMetrics("/metrics");
+app.UseOpenTelemetryPrometheusScrapingEndpoint(); 
 
 // API + SignalR
 app.MapControllers();

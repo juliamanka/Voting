@@ -5,7 +5,6 @@ using Microsoft.Extensions.Diagnostics.HealthChecks;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
-using Prometheus;
 using Serilog;
 using Voting.Api.Common;
 using Voting.Application;
@@ -62,26 +61,30 @@ try
         c.SwaggerDoc("v1", new() { Title = "Synchronous Voting API", Version = "v1" });
     });
     
-    
     const string serviceName = "SynchronousVoting.Api";
-    var otlpEndpoint = builder.Configuration["OtlpExporter:Endpoint"];
 
-    builder.Services.AddOpenTelemetry()
-        .ConfigureResource(resource => resource.AddService(serviceName))
-        .WithTracing(tracing => tracing
-            .AddAspNetCoreInstrumentation() 
-            .AddEntityFrameworkCoreInstrumentation()
+    var otel = builder.Services.AddOpenTelemetry();
+    otel.ConfigureResource(resource =>
+        resource.AddService(serviceName));
+
+    otel.WithMetrics(metrics =>
+    {
+        metrics
+            .AddAspNetCoreInstrumentation()
+            .AddMeter("SynchronousVoting.Api.Metrics") 
             .AddHttpClientInstrumentation()
-            .AddSource(serviceName)
-            .AddOtlpExporter(opts => opts.Endpoint = new Uri(otlpEndpoint!)) 
-            .AddConsoleExporter()) 
-        .WithMetrics(metrics => metrics
-            .AddAspNetCoreInstrumentation() 
-            .AddRuntimeInstrumentation() 
-            .AddProcessInstrumentation() 
-            .AddOtlpExporter(opts => opts.Endpoint = new Uri(otlpEndpoint!))
-            .AddConsoleExporter()); 
-
+            .AddRuntimeInstrumentation()
+            .AddProcessInstrumentation()
+            .AddPrometheusExporter();
+    });
+    otel.WithTracing(tracing =>
+    {
+        tracing
+            .AddAspNetCoreInstrumentation()
+            .AddEntityFrameworkCoreInstrumentation()
+            .AddHttpClientInstrumentation();
+    });
+    
     builder.Services.AddHealthChecks()
         .AddCheck("self", () => HealthCheckResult.Healthy(), tags: new[] { "live" }) // Podstawowy check
         .AddSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")!, // Check bazy danych
@@ -101,15 +104,13 @@ try
     app.UseHttpsRedirection();
 
     app.UseSerilogRequestLogging();
-    
-    app.MapMetrics(); 
-    
     app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = r => r.Tags.Contains("live") });
     app.MapHealthChecks("/health/ready", new HealthCheckOptions { Predicate = r => r.Tags.Contains("ready") });
 
     app.UseGlobalExceptionHandling();
     app.UseAuthorization();
     app.UseCors("AllowFrontend");
+    app.UseOpenTelemetryPrometheusScrapingEndpoint(); 
     app.MapControllers();
 
     if (app.Environment.IsDevelopment())

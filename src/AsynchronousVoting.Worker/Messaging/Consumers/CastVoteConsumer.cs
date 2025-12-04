@@ -1,4 +1,6 @@
 using System.ComponentModel.DataAnnotations;
+using System.Diagnostics;
+using AsynchronousVoting.Worker.Monitoring;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Voting.Application.DTOs;
@@ -41,10 +43,21 @@ public class CastVoteConsumer : IConsumer<CastVoteCommand>
             PollOptionId = msg.PollOptionId,
             UserId = msg.UserId
         };
-
+        
         _dbContext.Votes.Add(vote);
         await _dbContext.SaveChangesAsync(context.CancellationToken);
+        
+        var duration = DateTime.UtcNow - msg.CreatedAtUtc;
+        
+        var tags = new TagList
+        {
+            { "architecture", "async" }
+        };
 
+        VotingMetrics.VoteProcessingDurationSeconds.Record(duration.TotalSeconds, tags);
+        // metryka vote_processing_duration_seconds = pełny czas od przyjęcia głosu przez
+        // API do zakończenia przetwarzania (w tym DB) - end to end processing time
+        
         await context.Publish(new VoteRecordedEvent(
             vote.VoteId, vote.PollId, vote.PollOptionId, vote.UserId, vote.Timestamp));
     }

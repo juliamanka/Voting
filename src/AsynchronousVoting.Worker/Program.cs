@@ -1,5 +1,7 @@
 using AsynchronousVoting.Worker.Messaging.Consumers;
 using MassTransit;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Resources;
 using Voting.Application;
 using Voting.Infrastructure;
 
@@ -28,6 +30,17 @@ builder.Services.AddMassTransit(x =>
         });
     });
 });
+
+const string serviceName = "AsynchronousVoting.Worker";
+builder.Services.AddOpenTelemetry()
+    .ConfigureResource(resource => resource.AddService(serviceName))
+    .WithMetrics(metrics => metrics
+        .AddMeter("AsynchronousVoting.Worker.Metrics")  
+        .AddPrometheusHttpListener(options => 
+        {
+            options.UriPrefixes = new[] { "http://*:9184/" }; 
+        }));
+
 
 var host = builder.Build();
 host.Run();

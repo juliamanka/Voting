@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.SignalR;
 
-namespace Asynchronous.Api.Hubs;
+namespace AsynchronousVoting.Api.Hubs;
 
 public class ResultsHub : Hub
 {

@@ -1,4 +1,4 @@
-using Asynchronous.Api.Hubs;
+using AsynchronousVoting.Api.Hubs;
 using MassTransit;
 using Microsoft.AspNetCore.SignalR;
 using Voting.Application.DTOs;

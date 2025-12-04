@@ -1,3 +1,4 @@
+using HybridVoting.Api.Monitoring;
 using HybridVoting.Api.Requests;
 using MassTransit;
 using Microsoft.AspNetCore.Mvc;
@@ -29,6 +30,8 @@ public class VotesController : ControllerBase
         [FromBody] CastVoteRequest request,
         CancellationToken cancellationToken)
     {
+        var start = DateTime.UtcNow;
+
         var poll = await _dbContext.Polls
             .Include(p => p.Options)
             .FirstOrDefaultAsync(p => p.PollId == request.PollId, cancellationToken);
@@ -54,6 +57,14 @@ public class VotesController : ControllerBase
 
         await _voteNotifier.NotifyVoteAsync(request.PollId, request.PollOptionId, request.UserId, cancellationToken);
 
+        var duration = DateTime.UtcNow - start;
+
+        var tags = new KeyValuePair<string, object?>[]
+        {
+            new("architecture", "hybrid")
+        };
+        VotingMetrics.VoteProcessingDurationSeconds.Record(duration.TotalSeconds, tags);
+        
         return Accepted(new
         {
             pollId = request.PollId,
