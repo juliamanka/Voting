@@ -2,7 +2,7 @@ using MassTransit;
 using Voting.Application.DTOs;
 using Voting.Application.Interfaces;
 
-namespace AsynchronousVoting.Api;
+namespace AsynchronousVoting.Api.Notifiers;
 
 public class AsyncVoteNotifier : IVoteNotifier
 {

@@ -1,9 +1,8 @@
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Voting.Application.DTOs;
 using Voting.Application.Interfaces;
 
-namespace SynchronousVoting.Api.Controllers;
+namespace AsynchronousVoting.Api.Controllers;
 
 [ApiController]
 [Route("api/polls")] 

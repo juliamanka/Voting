@@ -2,6 +2,7 @@
 using AsynchronousVoting.Api;
 using AsynchronousVoting.Api.Hubs;
 using AsynchronousVoting.Api.Messaging.Consumers;
+using AsynchronousVoting.Api.Notifiers;
 using MassTransit;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using OpenTelemetry.Metrics;

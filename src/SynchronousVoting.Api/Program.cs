@@ -19,8 +19,8 @@ Log.Logger = new LoggerConfiguration()
     .Enrich.FromLogContext()
     .Enrich.WithProperty("ApplicationName", Assembly.GetExecutingAssembly().GetName().Name)
     .Enrich.WithEnvironmentName()
-    .WriteTo.Console() // Logowanie do konsoli
-    .WriteTo.OpenTelemetry(opts => // Wysyłanie logów do kolektora OTLP (np. Loki)
+    .WriteTo.Console() 
+    .WriteTo.OpenTelemetry(opts => 
     {
         opts.Endpoint = new ConfigurationBuilder()
             .AddJsonFile("appsettings.json")
@@ -86,8 +86,8 @@ try
     });
     
     builder.Services.AddHealthChecks()
-        .AddCheck("self", () => HealthCheckResult.Healthy(), tags: new[] { "live" }) // Podstawowy check
-        .AddSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")!, // Check bazy danych
+        .AddCheck("self", () => HealthCheckResult.Healthy(), tags: new[] { "live" }) 
+        .AddSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")!, 
                       name: "database", 
                       tags: new[] { "ready" });
     

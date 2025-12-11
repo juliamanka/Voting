@@ -1,4 +1,4 @@
-namespace Asynchronous.Api.Requests;
+namespace AsynchronousVoting.Api.Requests;
 
 public class CastVoteRequest
 {

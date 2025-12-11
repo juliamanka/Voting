@@ -4,7 +4,7 @@ namespace HybridVoting.Api.Monitoring;
 
 public static class UxMetrics
 {
-    private static readonly Meter Meter = new("Hybrid.Api.Metrics", "1.0.0");
+    private static readonly Meter Meter = new("HybridVoting.Api.Metrics", "1.0.0");
 
     public static readonly Histogram<double> UxVoteLatencySeconds =
         Meter.CreateHistogram<double>(

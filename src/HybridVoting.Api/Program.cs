@@ -2,6 +2,7 @@ using System.Text.Json;
 using HybridVoting.Api;
 using HybridVoting.Api.Hubs;
 using HybridVoting.Api.Messaging.Consumers;
+using HybridVoting.Api.Notifiers;
 using MassTransit;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using OpenTelemetry.Metrics;
@@ -15,9 +16,6 @@ using Voting.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// ---------------------------
-// Serilog
-// ---------------------------
 Log.Logger = new LoggerConfiguration()
     .ReadFrom.Configuration(builder.Configuration)
     .Enrich.FromLogContext()
@@ -26,9 +24,6 @@ Log.Logger = new LoggerConfiguration()
 
 builder.Host.UseSerilog();
 
-// ---------------------------
-// CORS
-// ---------------------------
 const string CorsPolicy = "AllowFrontend";
 
 builder.Services.AddCors(options =>
@@ -36,35 +31,23 @@ builder.Services.AddCors(options =>
     options.AddPolicy(CorsPolicy, policy =>
     {
         policy
-            .WithOrigins("http://localhost:4200") // albo z configa: builder.Configuration["FrontendUrl"]
+            .WithOrigins("http://localhost:4200") 
             .AllowAnyHeader()
             .AllowAnyMethod()
             .AllowCredentials();
     });
 });
 
-// ---------------------------
-// MVC, Swagger
-// ---------------------------
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// ---------------------------
-// Application / Infrastructure
-// ---------------------------
 builder.Services.AddApplicationServices();
 builder.Services.AddInfrastructureServices(builder.Configuration);
 
-// ---------------------------
-// SignalR + global exception handling
-// ---------------------------
 builder.Services.AddSignalR();
 builder.Services.AddGlobalExceptionHandling();
 
-// ---------------------------
-// OpenTelemetry
-// ---------------------------
 const string serviceName = "HybridVoting.Api";
 
 var otel = builder.Services.AddOpenTelemetry();
@@ -75,7 +58,7 @@ otel.WithMetrics(metrics =>
 {
     metrics
         .AddAspNetCoreInstrumentation()
-        .AddMeter("Hybrid.Api.Metrics") 
+        .AddMeter("HybridVoting.Api.Metrics") 
         .AddHttpClientInstrumentation()
         .AddRuntimeInstrumentation()
         .AddProcessInstrumentation()
@@ -89,17 +72,12 @@ otel.WithTracing(tracing =>
         .AddHttpClientInstrumentation();
 });
 
-// ---------------------------
-// HealthChecks
-// ---------------------------
 builder.Services.AddHealthChecks()
     .AddMySql(
         connectionString: builder.Configuration.GetConnectionString("DefaultConnection"),
         name: "mysql");
 
-// ---------------------------
-// RabbitMQ / MassTransit
-// ---------------------------
+
 var rabbitSection = builder.Configuration.GetSection("RabbitMq");
 if (!rabbitSection.Exists())
     throw new InvalidOperationException("No section 'RabbitMq' in appsettings.json.");
@@ -127,16 +105,10 @@ builder.Services.AddMassTransit(x =>
     });
 });
 
-// ---------------------------
-// Hybrydowa implementacja IVoteNotifier
-// ---------------------------
 builder.Services.AddScoped<IVoteNotifier, HybridVoteNotifier>();
 
 var app = builder.Build();
 
-// ---------------------------
-// Middleware pipeline
-// ---------------------------
 app.UseSwagger();
 app.UseSwaggerUI();
 
@@ -148,7 +120,6 @@ app.UseGlobalExceptionHandling();
 
 app.UseAuthorization();
 
-// Health checks – JSON output (ładnie pod Grafanę / K8s probes itd.)
 app.MapHealthChecks("/health", new HealthCheckOptions
 {
     ResponseWriter = async (context, report) =>
@@ -171,10 +142,8 @@ app.MapHealthChecks("/health", new HealthCheckOptions
     }
 });
 
-// Prometheus metrics
 app.UseOpenTelemetryPrometheusScrapingEndpoint(); 
 
-// API + SignalR
 app.MapControllers();
 app.MapHub<ResultsHub>("/hubs/results");
 

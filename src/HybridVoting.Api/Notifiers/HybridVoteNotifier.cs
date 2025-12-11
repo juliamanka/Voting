@@ -2,7 +2,7 @@ using MassTransit;
 using Voting.Application.DTOs;
 using Voting.Application.Interfaces;
 
-namespace HybridVoting.Api;
+namespace HybridVoting.Api.Notifiers;
 
 public class HybridVoteNotifier : IVoteNotifier
 {

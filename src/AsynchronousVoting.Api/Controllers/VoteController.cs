@@ -1,4 +1,4 @@
-using Asynchronous.Api.Requests;
+using AsynchronousVoting.Api.Requests;
 using Microsoft.AspNetCore.Mvc;
 using Voting.Application.Interfaces;
 
