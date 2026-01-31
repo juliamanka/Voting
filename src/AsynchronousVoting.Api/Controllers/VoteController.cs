@@ -1,11 +1,13 @@
 using AsynchronousVoting.Api.Requests;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Voting.Application.Interfaces;
 
 namespace AsynchronousVoting.Api.Controllers;
 
 [ApiController]
 [Route("api/vote")]
+[EnableRateLimiting("votes-policy")]
 public class VotesController : ControllerBase
 {
     private readonly IVoteNotifier _voteNotifier;

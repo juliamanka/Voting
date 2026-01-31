@@ -13,6 +13,8 @@ using Voting.Api.Common;
 using Voting.Application;
 using Voting.Application.Interfaces;
 using Voting.Infrastructure;
+using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -37,6 +39,20 @@ builder.Services.AddCors(options =>
 });
 
 builder.Host.UseSerilog();
+
+builder.Services.AddRateLimiter(options =>
+{
+    options.AddPolicy("votes-policy", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: "global",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 100, //max żądań na okno
+                Window = TimeSpan.FromSeconds(1), // długość okna
+                QueueLimit = 200, // ile żądań może czekać w kolejce
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst
+            }));
+});
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
@@ -99,10 +115,8 @@ builder.Services.AddMassTransit(x =>
             h.Password(rabbitPass);
         });
 
-        cfg.ReceiveEndpoint("async-vote-recorded-events", e =>
-        {
-            e.ConfigureConsumer<VoteRecordedEventConsumer>(context);
-        });
+        cfg.ReceiveEndpoint("async-vote-recorded-events",
+            e => { e.ConfigureConsumer<VoteRecordedEventConsumer>(context); });
     });
 });
 
@@ -119,6 +133,9 @@ app.UseCors(CorsPolicy);
 app.UseGlobalExceptionHandling();
 
 app.UseAuthorization();
+
+app.UseRateLimiter();
+
 app.MapHealthChecks("/health", new HealthCheckOptions
 {
     ResponseWriter = async (context, report) =>
@@ -137,7 +154,6 @@ app.MapHealthChecks("/health", new HealthCheckOptions
             })
         };
         await context.Response.WriteAsync(JsonSerializer.Serialize(response));
-
     }
 });
 app.UseOpenTelemetryPrometheusScrapingEndpoint();

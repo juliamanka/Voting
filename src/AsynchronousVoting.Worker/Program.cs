@@ -27,6 +27,12 @@ builder.Services.AddMassTransit(x =>
         cfg.ReceiveEndpoint("cast-vote-queue", e =>
         {
             e.ConfigureConsumer<CastVoteConsumer>(context);
+            
+            // LIMIT RÓWNOLEGŁYCH WIADOMOŚCI (workerów)
+            e.ConcurrentMessageLimit = 8;     // np. max 8 "workerów" równolegle
+            
+            // LIMIT PREFETCHU z RabbitMQ (ile niepotwierdzonych wiadomości naraz)
+            e.PrefetchCount = 16;             // e.g. 2x concurrency
         });
     });
 });
