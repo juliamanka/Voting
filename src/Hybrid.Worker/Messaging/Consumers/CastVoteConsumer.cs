@@ -1,13 +1,11 @@
-using System.ComponentModel.DataAnnotations;
 using System.Diagnostics;
-using AsynchronousVoting.Worker.Monitoring;
+using Hybrid.Worker.Monitoring;
 using MassTransit;
-using Microsoft.EntityFrameworkCore;
 using Voting.Application.DTOs;
 using Voting.Domain.Entities;
 using Voting.Infrastructure.Database;
 
-namespace AsynchronousVoting.Worker.Messaging.Consumers;
+namespace Hybrid.Worker.Messaging.Consumers;
 
 public class CastVoteConsumer : IConsumer<CastVoteCommand>
 {
@@ -30,15 +28,6 @@ public class CastVoteConsumer : IConsumer<CastVoteCommand>
             context.Message.PollId, context.Message.PollOptionId);
         
         var msg = context.Message;
-        
-         var optionExists = await _dbContext.PollOptions
-             .AnyAsync(o => o.PollId == msg.PollId && o.PollOptionId == msg.PollOptionId,
-                 context.CancellationToken);
-
-         if (!optionExists)
-         {
-             throw new ValidationException("Chosen answer doesn't exist in the poll.");
-         }
 
         var vote = new VoteRecord
         {
@@ -55,7 +44,7 @@ public class CastVoteConsumer : IConsumer<CastVoteCommand>
         
         var tags = new TagList
         {
-            { "architecture", "async" },
+            { "architecture", "hybrid" },
             { "worker_instance", _instanceId }
         };
 

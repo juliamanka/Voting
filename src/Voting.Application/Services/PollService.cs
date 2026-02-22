@@ -19,7 +19,7 @@ public class PollService : IPollService
     }
 
     public async Task<IEnumerable<PollDto>> GetAvailablePollsAsync(CancellationToken cancellationToken)
-    {
+    {   
         var polls = await _pollRepository.GetActivePollsWithOptionsAsync(cancellationToken);
         return _mapper.Map<IEnumerable<PollDto>>(polls);
     }
@@ -64,7 +64,21 @@ public class PollService : IPollService
     
     public async Task<PollResults?> GetVotesForPoll(Guid pollId, CancellationToken cancellationToken)
     {
-        var all = await GetAllVotesForPolls(cancellationToken);
-        return all.SingleOrDefault(p => p.PollId == pollId);
+        var poll = await _pollRepository.GetByIdAsync(pollId, cancellationToken);
+        if (poll == null) return null;
+
+        var voteCounts = await _voteRepository.GetVoteCountsByPollIdAsync(pollId, cancellationToken);
+
+        return new PollResults
+        {
+            PollId = poll.PollId,
+            PollTitle = poll.Question,
+            Options = poll.Options.Select(o => new Options
+            {
+                OptionId = o.PollOptionId,
+                OptionText = o.Text,
+                VoteCount = voteCounts.TryGetValue(o.PollOptionId, out var count) ? count : 0
+            }).ToList()
+        };
     }
 }

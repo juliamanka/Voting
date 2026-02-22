@@ -15,14 +15,7 @@ public class HybridVoteNotifier : IVoteNotifier
 
     public Task NotifyVoteAsync(Guid pollId, Guid optionId, string? userId, CancellationToken cancellationToken = default)
     {
-        var evt = new VoteRecordedEvent(
-            VoteId: Guid.NewGuid(),      // nie jest używany dalej
-            PollId: pollId,
-            PollOptionId: optionId,
-            UserId: null,
-            TimeStamp: DateTime.UtcNow
-        );
-
-        return _publishEndpoint.Publish<VoteRecordedEvent>(evt, cancellationToken);
+        var cmd = new CastVoteCommand(pollId, optionId, userId, DateTime.UtcNow);
+        return _publishEndpoint.Publish(cmd, cancellationToken);
     }
 }

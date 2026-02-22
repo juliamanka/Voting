@@ -1,10 +1,10 @@
 using System.Diagnostics.Metrics;
 
-namespace AsynchronousVoting.Worker.Monitoring;
+namespace Hybrid.Worker.Monitoring;
 
 public static class VotingMetrics
 {
-    private static readonly Meter Meter = new("AsynchronousVoting.Worker.Metrics", "1.0.0");
+    private static readonly Meter Meter = new("HybridVoting.Worker.Metrics", "1.0.0");
 
     /// <summary>
     /// Czas przetwarzania głosu w architekturze asynchronicznej:

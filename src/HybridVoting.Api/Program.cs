@@ -1,5 +1,5 @@
 using System.Text.Json;
-using HybridVoting.Api;
+using System.Threading.RateLimiting;
 using HybridVoting.Api.Hubs;
 using HybridVoting.Api.Messaging.Consumers;
 using HybridVoting.Api.Notifiers;
@@ -36,6 +36,20 @@ builder.Services.AddCors(options =>
             .AllowAnyMethod()
             .AllowCredentials();
     });
+});
+
+builder.Services.AddRateLimiter(options =>
+{
+    options.AddPolicy("votes-policy", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: "global",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 120, // Więcej niż testowane 100 RPS
+                Window = TimeSpan.FromSeconds(1),
+                QueueLimit = 0,    // Lepiej odrzucać od razu niż buforować na API
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst
+            }));
 });
 
 builder.Services.AddControllers();
@@ -101,6 +115,13 @@ builder.Services.AddMassTransit(x =>
         cfg.ReceiveEndpoint("hybrid-vote-recorded-events", e =>
         {
             e.ConfigureConsumer<VoteRecordedEventConsumer>(context);
+            
+            // LIMIT RÓWNOLEGŁYCH WIADOMOŚCI (workerów)
+            e.ConcurrentMessageLimit = 4;     // np. max 8 "workerów" równolegle
+            
+            // LIMIT PREFETCHU z RabbitMQ (ile niepotwierdzonych wiadomości naraz)
+            e.PrefetchCount = 8;             // e.g. 2x concurrency
+            
         });
     });
 });
@@ -117,6 +138,8 @@ app.UseHttpsRedirection();
 app.UseCors(CorsPolicy);
 
 app.UseGlobalExceptionHandling();
+
+app.UseRateLimiter();
 
 app.UseAuthorization();
 

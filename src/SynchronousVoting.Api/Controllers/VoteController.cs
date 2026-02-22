@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using SynchronousVoting.Api.Monitoring;
 using Voting.Application.DTOs;
 using Voting.Application.Interfaces;
@@ -8,6 +9,7 @@ namespace SynchronousVoting.Api.Controllers;
 
 [ApiController]
 [Route("api/vote")]
+[EnableRateLimiting("votes-policy")]
 public class VoteController : ControllerBase
 {
     private readonly IVotingService _votingService;

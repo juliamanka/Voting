@@ -1,5 +1,5 @@
-﻿using System.Text.Json;
-using AsynchronousVoting.Api;
+﻿using System.Reflection;
+using System.Text.Json;
 using AsynchronousVoting.Api.Hubs;
 using AsynchronousVoting.Api.Messaging.Consumers;
 using AsynchronousVoting.Api.Notifiers;
@@ -14,13 +14,16 @@ using Voting.Application;
 using Voting.Application.Interfaces;
 using Voting.Infrastructure;
 using System.Threading.RateLimiting;
-using Microsoft.AspNetCore.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
 Log.Logger = new LoggerConfiguration()
-    .ReadFrom.Configuration(builder.Configuration)
+    .ReadFrom.Configuration(new ConfigurationBuilder()
+        .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
+        .AddJsonFile($"appsettings.{Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Production"}.json", optional: true)
+        .Build())
     .Enrich.FromLogContext()
+    .Enrich.WithProperty("ApplicationName", Assembly.GetExecutingAssembly().GetName().Name)
     .WriteTo.Console()
     .CreateLogger();
 
@@ -47,9 +50,9 @@ builder.Services.AddRateLimiter(options =>
             partitionKey: "global",
             factory: _ => new FixedWindowRateLimiterOptions
             {
-                PermitLimit = 100, //max żądań na okno
-                Window = TimeSpan.FromSeconds(1), // długość okna
-                QueueLimit = 200, // ile żądań może czekać w kolejce
+                PermitLimit = 120, // Więcej niż testowane 100 RPS
+                Window = TimeSpan.FromSeconds(1),
+                QueueLimit = 0,    // Lepiej odrzucać od razu niż buforować na API
                 QueueProcessingOrder = QueueProcessingOrder.OldestFirst
             }));
 });
@@ -132,9 +135,9 @@ app.UseCors(CorsPolicy);
 
 app.UseGlobalExceptionHandling();
 
-app.UseAuthorization();
-
 app.UseRateLimiter();
+
+app.UseAuthorization();
 
 app.MapHealthChecks("/health", new HealthCheckOptions
 {

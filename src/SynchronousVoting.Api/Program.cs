@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Threading.RateLimiting;
 using FluentValidation.AspNetCore;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
@@ -45,6 +46,20 @@ try
                 .WithOrigins("http://localhost:4200")
                 .AllowCredentials();
         });
+    });
+    
+    builder.Services.AddRateLimiter(options =>
+    {
+        options.AddPolicy("votes-policy", context =>
+            RateLimitPartition.GetFixedWindowLimiter(
+                partitionKey: "global",
+                factory: _ => new FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = 120, // Więcej niż testowane 100 RPS
+                    Window = TimeSpan.FromSeconds(1),
+                    QueueLimit = 0,    // Lepiej odrzucać od razu niż buforować na API
+                    QueueProcessingOrder = QueueProcessingOrder.OldestFirst
+                }));
     });
     
     builder.Services.AddApplicationServices();
@@ -108,6 +123,7 @@ try
     app.MapHealthChecks("/health/ready", new HealthCheckOptions { Predicate = r => r.Tags.Contains("ready") });
 
     app.UseGlobalExceptionHandling();
+    app.UseRateLimiter();
     app.UseAuthorization();
     app.UseCors("AllowFrontend");
     app.UseOpenTelemetryPrometheusScrapingEndpoint(); 

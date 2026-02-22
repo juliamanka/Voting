@@ -30,7 +30,7 @@ public class VoteRecordedEventConsumer : IConsumer<VoteRecordedEvent>
             return;
 
         await _hubContext
-            .Clients.Group(pollId.ToString())
+            .Clients.All
             .SendAsync("PollResultsUpdated", pollResults, context.CancellationToken);
     }
 }

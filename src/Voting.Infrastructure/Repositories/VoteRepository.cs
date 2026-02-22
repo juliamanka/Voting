@@ -29,4 +29,14 @@ public class VoteRepository : IVoteRepository
 
         return vote;
     }
+    
+    public async Task<Dictionary<Guid, int>> GetVoteCountsByPollIdAsync(Guid pollId, CancellationToken cancellationToken)
+    {
+        // Wykonuje grupowanie po stronie SQL: SELECT PollOptionId, COUNT(*) ... GROUP BY PollOptionId
+        return await _context.Votes
+            .Where(v => v.PollId == pollId)
+            .GroupBy(v => v.PollOptionId)
+            .Select(g => new { OptionId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.OptionId, x => x.Count, cancellationToken);
+    }
 }

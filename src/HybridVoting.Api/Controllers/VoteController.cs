@@ -2,6 +2,7 @@ using HybridVoting.Api.Monitoring;
 using HybridVoting.Api.Requests;
 using MassTransit;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Voting.Domain.Entities;
 using Voting.Infrastructure.Database;
@@ -12,6 +13,7 @@ namespace HybridVoting.Api.Controllers;
 
 [ApiController]
 [Route("api/vote")]
+[EnableRateLimiting("votes-policy")]
 public class VotesController : ControllerBase
 {
     private readonly VotingDbContext _dbContext;
@@ -30,8 +32,6 @@ public class VotesController : ControllerBase
         [FromBody] CastVoteRequest request,
         CancellationToken cancellationToken)
     {
-        var start = DateTime.UtcNow;
-
         var poll = await _dbContext.Polls
             .Include(p => p.Options)
             .FirstOrDefaultAsync(p => p.PollId == request.PollId, cancellationToken);
@@ -43,27 +43,7 @@ public class VotesController : ControllerBase
         if (option is null)
             return BadRequest($"Option {request.PollOptionId} does not belong to poll {request.PollId}.");
 
-        var vote = new VoteRecord
-        {
-            VoteId = Guid.NewGuid(),
-            PollId = request.PollId,
-            PollOptionId = request.PollOptionId,
-            UserId = request.UserId,
-            Timestamp = DateTime.UtcNow
-        };
-
-        _dbContext.Votes.Add(vote);
-        await _dbContext.SaveChangesAsync(cancellationToken);
-
         await _voteNotifier.NotifyVoteAsync(request.PollId, request.PollOptionId, request.UserId, cancellationToken);
-
-        var duration = DateTime.UtcNow - start;
-
-        var tags = new KeyValuePair<string, object?>[]
-        {
-            new("architecture", "hybrid")
-        };
-        VotingMetrics.VoteProcessingDurationSeconds.Record(duration.TotalSeconds, tags);
         
         return Accepted(new
         {
