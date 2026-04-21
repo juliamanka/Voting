@@ -16,8 +16,9 @@ public class VoteRequestValidator : AbstractValidator<VoteRequest>
             .WithMessage("OptionId cannot be empty.");
 
         RuleFor(v => v.UserId)
+            .NotEmpty()
+            .WithMessage("UserId is required for eligibility verification.")
             .MaximumLength(256)
-            .When(v => !string.IsNullOrEmpty(v.UserId)) 
             .WithMessage("UserId cannot exceed 256 characters.");
     }
 }

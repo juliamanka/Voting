@@ -1,9 +1,7 @@
 using System.Diagnostics;
 using AutoMapper;
-using FluentValidation;
 using Microsoft.Extensions.Logging;
 using Voting.Application.DTOs;
-using Voting.Application.Exceptions;
 using Voting.Application.Interfaces;
 using Voting.Domain.Entities;
 using Voting.Domain.Enums;
@@ -13,79 +11,42 @@ namespace Voting.Application.Services;
 
 public class VotingService : IVotingService
 {
-   private readonly IVoteRepository _repository;
     private readonly IMapper _mapper;
     private readonly ILogger<VotingService> _logger;
-    private readonly IPollRepository _pollRepository; 
+    private readonly IVoteWriteService _voteWriteService;
+    private readonly IVoteProjectionAndAuditService _voteProjectionAndAuditService;
 
     public VotingService(
-        IVoteRepository repository, 
         IMapper mapper,
         ILogger<VotingService> logger,
-        IPollRepository pollRepository
+        IVoteWriteService voteWriteService,
+        IVoteProjectionAndAuditService voteProjectionAndAuditService
        )
     {
-        _repository = repository;
         _mapper = mapper;
         _logger = logger;
-        _pollRepository = pollRepository;
+        _voteWriteService = voteWriteService;
+        _voteProjectionAndAuditService = voteProjectionAndAuditService;
     }
 
     public async Task<VoteResponse> ProcessVoteAsync(VoteRequest voteRequest, CancellationToken cancellationToken)
     {
         var stopwatch = Stopwatch.StartNew();
+        var savedRecord = await _voteWriteService.WriteVoteAsync(voteRequest, cancellationToken);
+        await _voteProjectionAndAuditService.ApplyVoteAcceptedAsync(savedRecord, "sync", cancellationToken);
 
-        try
-        { 
-            var poll = await _pollRepository.GetByIdAsync(voteRequest.PollId, cancellationToken);
-            var optionExists = poll.Options.Any(o => o.PollOptionId == voteRequest.PollOptionId);
+        stopwatch.Stop();
 
-            if (!optionExists)
-            {
-                throw new ValidationException("Chosen answer doesn't exist in the poll.");
-            }
-            
-            if (poll == null)
-            {
-                throw new NotFoundException("Poll", voteRequest.PollId);
-            }
+        var receipt = _mapper.Map<VoteResponse>(savedRecord);
+        receipt.Status = VoteStatus.Counted;
+        receipt.ServerProcessingTimeMs = stopwatch.ElapsedMilliseconds;
 
-            if (!poll.IsActive)
-            {
-                throw new PollInactiveException(voteRequest.PollId);
-            }
-            
-            var voteRecord = _mapper.Map<VoteRecord>(voteRequest);
-            
-            var savedRecord = await _repository.AddVoteAsync(voteRecord, cancellationToken);
-            
-            stopwatch.Stop();
+        _logger.LogInformation(
+            "Vote successfuly saved: {VoteId} for poll {PollId} in {ProcessingTime}ms",
+            receipt.VoteId,
+            receipt.PollId,
+            receipt.ServerProcessingTimeMs);
 
-            var receipt = _mapper.Map<VoteResponse>(savedRecord);
-            
-            receipt.Status = VoteStatus.Counted;
-            receipt.ServerProcessingTimeMs = stopwatch.ElapsedMilliseconds;
-
-            _logger.LogInformation(
-                "Vote successfuly saved: {VoteId} for poll {PollId} in {ProcessingTime}ms", 
-                receipt.VoteId, 
-                receipt.PollId, 
-                receipt.ServerProcessingTimeMs);
-
-            return receipt;
-        }
-        catch (Exception ex)
-        {
-            stopwatch.Stop();
-            _logger.LogError(ex, "Error for vote for: {PollId}", voteRequest.PollId);
-
-            return new VoteResponse
-            {
-                PollId = voteRequest.PollId,
-                Status = VoteStatus.Failed,
-                ServerProcessingTimeMs = stopwatch.ElapsedMilliseconds
-            };
-             throw; 
-        }
+        return receipt;
     }
 }

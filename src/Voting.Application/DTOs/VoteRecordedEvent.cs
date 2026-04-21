@@ -5,5 +5,7 @@ public record VoteRecordedEvent(
     Guid PollId,
     Guid PollOptionId,
     string? UserId,
-    DateTime TimeStamp
+    DateTime VoteRecordedAtUtc,
+    DateTime RequestStartedAtUtc,
+    DateTime PublishedAtUtc
 );

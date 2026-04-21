@@ -1,9 +1,9 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using SynchronousVoting.Api.Monitoring;
+using Voting.Api.Common.RequestTiming;
 using Voting.Application.DTOs;
 using Voting.Application.Interfaces;
-using Voting.Domain.Enums;
 
 namespace SynchronousVoting.Api.Controllers;
 
@@ -34,22 +34,16 @@ public class VoteController : ControllerBase
         [FromBody] VoteRequest request,
         CancellationToken cancellationToken)
     {
-        var start = DateTime.UtcNow;
-        
         var receipt = await _votingService.ProcessVoteAsync(request, cancellationToken);
-
-        var duration = DateTime.UtcNow - start;
+        var responseLatency = RequestTimingContext.GetElapsedSinceRequestStart(HttpContext);
 
         var tags = new KeyValuePair<string, object?>[]
         {
             new("architecture", "sync")
         };
-        VotingMetrics.VoteProcessingDurationSeconds.Record(duration.TotalSeconds, tags);
-        
-        if (receipt.Status == VoteStatus.Failed)
-        {
-            return StatusCode(StatusCodes.Status500InternalServerError, receipt);
-        }
+        VotingMetrics.VoteProcessingDurationSeconds.Record(responseLatency.TotalSeconds, tags);
+        VotingMetrics.VoteHttpResponseLatencySeconds.Record(responseLatency.TotalSeconds, tags);
+
         return CreatedAtAction(nameof(SubmitVote), new { id = receipt.VoteId }, receipt);
     }
 }

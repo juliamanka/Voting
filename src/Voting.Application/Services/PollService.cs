@@ -8,14 +8,17 @@ namespace Voting.Application.Services;
 public class PollService : IPollService
 {
     private readonly IPollRepository _pollRepository;
-    private readonly IVoteRepository _voteRepository;
+    private readonly IPollResultsProjectionRepository _projectionRepository;
     private readonly IMapper _mapper;
 
-    public PollService(IPollRepository pollRepository, IMapper mapper, IVoteRepository voteRepository)
+    public PollService(
+        IPollRepository pollRepository,
+        IMapper mapper,
+        IPollResultsProjectionRepository projectionRepository)
     {
         _pollRepository = pollRepository;
         _mapper = mapper;
-        _voteRepository = voteRepository;
+        _projectionRepository = projectionRepository;
     }
 
     public async Task<IEnumerable<PollDto>> GetAvailablePollsAsync(CancellationToken cancellationToken)
@@ -32,53 +35,49 @@ public class PollService : IPollService
 
     public async Task<List<PollResults>> GetAllVotesForPolls(CancellationToken cancellationToken)
     {
-        var polls = await _pollRepository.GetAllAsync(cancellationToken);
-        
-        var votes = await _voteRepository.GetVotes(cancellationToken);
-        var votesInPoll = votes.GroupBy(v => new { v.PollId, v.PollOptionId })
-            .Select(g => new
-            {
-                pollId = g.Key.PollId,
-                optionId = g.Key.PollOptionId,
-                count = g.Count()
-            })
-            .ToList();
+        var projections = await _projectionRepository.GetAllAsync(cancellationToken);
 
-        var response = polls.Select(p => new PollResults()
+        return projections.Select(p => new PollResults
         {
             PollId = p.PollId,
-            PollTitle = p.Question,
-            Options = Enumerable.Select(p.Options, o => new Options()
+            PollTitle = p.PollTitle,
+            TotalVotes = p.TotalVotes,
+            LastUpdatedAtUtc = p.LastUpdatedAtUtc,
+            Options = p.Options
+                .OrderBy(o => o.OrderIndex)
+                .Select(o => new Options
             {
-                OptionId = o.PollOptionId,
-                OptionText = o.Text,
-                VoteCount = votesInPoll
-                    .Where(v => v.pollId == p.PollId && v.optionId == o.PollOptionId)
-                    .Select(v => v.count)
-                    .FirstOrDefault()
-            }).ToList()
+                    OptionId = o.PollOptionId,
+                    OptionText = o.OptionText,
+                    VoteCount = o.VoteCount
+                })
+                .ToList()
         }).ToList();
-
-        return response;
     }
     
     public async Task<PollResults?> GetVotesForPoll(Guid pollId, CancellationToken cancellationToken)
     {
-        var poll = await _pollRepository.GetByIdAsync(pollId, cancellationToken);
-        if (poll == null) return null;
-
-        var voteCounts = await _voteRepository.GetVoteCountsByPollIdAsync(pollId, cancellationToken);
+        var projection = await _projectionRepository.GetByPollIdAsync(pollId, cancellationToken);
+        if (projection is null)
+        {
+            return null;
+        }
 
         return new PollResults
         {
-            PollId = poll.PollId,
-            PollTitle = poll.Question,
-            Options = poll.Options.Select(o => new Options
-            {
-                OptionId = o.PollOptionId,
-                OptionText = o.Text,
-                VoteCount = voteCounts.TryGetValue(o.PollOptionId, out var count) ? count : 0
-            }).ToList()
+            PollId = projection.PollId,
+            PollTitle = projection.PollTitle,
+            TotalVotes = projection.TotalVotes,
+            LastUpdatedAtUtc = projection.LastUpdatedAtUtc,
+            Options = projection.Options
+                .OrderBy(o => o.OrderIndex)
+                .Select(o => new Options
+                {
+                    OptionId = o.PollOptionId,
+                    OptionText = o.OptionText,
+                    VoteCount = o.VoteCount
+                })
+                .ToList()
         };
     }
 }

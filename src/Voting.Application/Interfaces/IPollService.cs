@@ -11,5 +11,4 @@ public interface IPollService
     Task<List<PollResults>> GetAllVotesForPolls(CancellationToken cancellationToken);
     
     Task<PollResults?> GetVotesForPoll(Guid pollId, CancellationToken cancellationToken);
-
 }

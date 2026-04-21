@@ -8,7 +8,7 @@ public class VotingDbContextFactory : IDesignTimeDbContextFactory<VotingDbContex
 {
     public VotingDbContext CreateDbContext(string[] args)
     {
-        var basePath = Path.Combine(Directory.GetCurrentDirectory(), "../SynchronousVoting.Api");
+        var basePath = Path.Combine(Directory.GetCurrentDirectory(), "../HybridVoting.Api");
 
         var configuration = new ConfigurationBuilder()
             .SetBasePath(basePath)
@@ -23,10 +23,8 @@ public class VotingDbContextFactory : IDesignTimeDbContextFactory<VotingDbContex
 
         var optionsBuilder = new DbContextOptionsBuilder<VotingDbContext>();
 
-        optionsBuilder.UseMySql(
-            connectionString,
-            ServerVersion.AutoDetect(connectionString)
-        );
+        optionsBuilder.UseSqlServer(
+            connectionString);
 
         return new VotingDbContext(optionsBuilder.Options);
     }

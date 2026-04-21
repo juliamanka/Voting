@@ -10,10 +10,12 @@ using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using Serilog;
 using Voting.Api.Common;
+using Voting.Api.Common.RequestTiming;
 using Voting.Application;
 using Voting.Application.Interfaces;
 using Voting.Infrastructure;
 using System.Threading.RateLimiting;
+using Voting.Infrastructure.Database;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -34,7 +36,7 @@ builder.Services.AddCors(options =>
     options.AddPolicy(CorsPolicy, policy =>
     {
         policy
-            .WithOrigins("http://localhost:4200")
+            .WithOrigins("http://localhost:4200", "http://127.0.0.1:4200")
             .AllowAnyHeader()
             .AllowAnyMethod()
             .AllowCredentials();
@@ -63,6 +65,7 @@ builder.Services.AddSwaggerGen();
 
 builder.Services.AddApplicationServices();
 builder.Services.AddInfrastructureServices(builder.Configuration);
+builder.Services.AddHttpContextAccessor();
 
 builder.Services.AddSignalR();
 
@@ -78,7 +81,31 @@ otel.WithMetrics(metrics =>
 {
     metrics
         .AddAspNetCoreInstrumentation()
+        .AddView("http.server.request.duration", new ExplicitBucketHistogramConfiguration
+        {
+            Boundaries = new[]
+            {
+                0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5,
+                1, 2, 5, 10, 20, 30, 45, 60, 90, 120, 180, 240, 300
+            }
+        })
         .AddMeter("AsynchronousVoting.Api.Metrics")
+        .AddView("vote_http_response_latency_seconds", new ExplicitBucketHistogramConfiguration
+        {
+            Boundaries = new[]
+            {
+                0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5,
+                1, 2, 5, 10, 20, 30, 45, 60, 90, 120, 180, 240, 300
+            }
+        })
+        .AddView("ux_vote_latency_seconds", new ExplicitBucketHistogramConfiguration
+        {
+            Boundaries = new[]
+            {
+                0.01, 0.02, 0.05, 0.1, 0.2, 0.5,
+                1, 2, 5, 10, 15, 20, 30, 45, 60, 90, 120
+            }
+        })
         .AddHttpClientInstrumentation()
         .AddRuntimeInstrumentation()
         .AddProcessInstrumentation()
@@ -93,9 +120,9 @@ otel.WithTracing(tracing =>
 });
 
 builder.Services.AddHealthChecks()
-    .AddMySql(
+    .AddSqlServer(
         connectionString: builder.Configuration.GetConnectionString("DefaultConnection"),
-        name: "mysql");
+        name: "sqlserver");
 
 var rabbitSection = builder.Configuration.GetSection("RabbitMq");
 if (!rabbitSection.Exists())
@@ -108,7 +135,14 @@ var rabbitPass = rabbitSection["Password"] ?? throw new InvalidOperationExceptio
 // MassTransit
 builder.Services.AddMassTransit(x =>
 {
-    x.AddConsumer<VoteRecordedEventConsumer>();
+    x.AddConsumer<PollResultsUpdatedEventConsumer>();
+
+    x.AddEntityFrameworkOutbox<VotingDbContext>(o =>
+    {
+        o.UseSqlServer();
+        o.UseBusOutbox();
+        o.DisableInboxCleanupService(); // API zazwyczaj tylko wysyła, nie potrzebuje cleanupu inboxa
+    });
 
     x.UsingRabbitMq((context, cfg) =>
     {
@@ -118,8 +152,14 @@ builder.Services.AddMassTransit(x =>
             h.Password(rabbitPass);
         });
 
-        cfg.ReceiveEndpoint("async-vote-recorded-events",
-            e => { e.ConfigureConsumer<VoteRecordedEventConsumer>(context); });
+        cfg.ReceiveEndpoint("async-poll-results-updated-events",
+            e =>
+            {
+                e.UseEntityFrameworkOutbox<VotingDbContext>(context);
+                e.ConfigureConsumer<PollResultsUpdatedEventConsumer>(context);
+                e.ConcurrentMessageLimit = 4;
+                e.PrefetchCount = 8;
+            });
     });
 });
 
@@ -127,6 +167,9 @@ builder.Services.AddScoped<IVoteNotifier, AsyncVoteNotifier>();
 
 var app = builder.Build();
 
+app.ApplyMigrations();
+
+app.UseRequestTiming();
 app.UseSwagger();
 app.UseSwaggerUI();
 

@@ -22,6 +22,11 @@ public class Poll
     /// </summary>
     public bool IsActive { get; set; }
 
+    /// <summary>
+    /// Czy oddanie głosu wymaga identyfikatora użytkownika oraz weryfikacji uprawnień.
+    /// </summary>
+    public bool RequiresEligibilityCheck { get; set; }
+
     public DateTime CreatedAt { get; set; }
 
     // === Właściwość Nawigacyjna ===
@@ -38,5 +43,6 @@ public class Poll
         Options = new HashSet<PollOption>();
         CreatedAt = DateTime.UtcNow;
         IsActive = true;
+        RequiresEligibilityCheck = true;
     }
 }

@@ -1,7 +1,13 @@
 using AsynchronousVoting.Api.Requests;
+using AsynchronousVoting.Api.Monitoring;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using Voting.Api.Common.RequestTiming;
+using Voting.Application.DTOs;
 using Voting.Application.Interfaces;
+using Voting.Domain.Enums;
+using Voting.Infrastructure.Database;
 
 namespace AsynchronousVoting.Api.Controllers;
 
@@ -11,28 +17,85 @@ namespace AsynchronousVoting.Api.Controllers;
 public class VotesController : ControllerBase
 {
     private readonly IVoteNotifier _voteNotifier;
+    private readonly IVoteValidationService _voteValidationService;
+    private readonly VotingDbContext _dbContext;
 
-    public VotesController(IVoteNotifier voteNotifier)
+    public VotesController(
+        IVoteNotifier voteNotifier,
+        IVoteValidationService voteValidationService,
+        VotingDbContext dbContext)
     {
         _voteNotifier = voteNotifier;
+        _voteValidationService = voteValidationService;
+        _dbContext = dbContext;
     }
 
     [HttpPost]
     public async Task<IActionResult> CastVote([FromBody] CastVoteRequest request, CancellationToken ct)
     {
-        if (!ModelState.IsValid)
-            return ValidationProblem(ModelState);
+        var voteRequest = new VoteRequest
+        {
+            PollId = request.PollId,
+            PollOptionId = request.PollOptionId,
+            UserId = request.UserId
+        };
 
-        if (request.PollId == Guid.Empty || request.PollOptionId == Guid.Empty)
-            return BadRequest("Invalid PollId or PollOptionId.");
+        await _voteValidationService.ValidateAsync(voteRequest, ct);
 
-        await _voteNotifier.NotifyVoteAsync(request.PollId, request.PollOptionId, request.UserId, ct);
+        var submissionId = await _voteNotifier.NotifyVoteAsync(request.PollId, request.PollOptionId, request.UserId, ct);
+
+        await _dbContext.Database.ExecuteSqlInterpolatedAsync(
+            $"""
+              UPDATE VoteSubmissions
+              SET HttpResponseLatencyMs = DATEDIFF_BIG(MILLISECOND, RequestStartedAtUtc, SYSUTCDATETIME())
+              WHERE SubmissionId = {submissionId}
+              """,
+            ct);
+
+        var responseLatency = RequestTimingContext.GetElapsedSinceRequestStart(HttpContext);
+        VotingMetrics.VoteHttpResponseLatencySeconds.Record(responseLatency.TotalSeconds);
 
         return Accepted(new
         {
-            message = "Vote accepted for processing.",
+            submissionId,
+            status = VoteStatus.Pending,
+            message = "Vote accepted for processing. Check the status endpoint for the final result.",
             pollId = request.PollId,
             pollOptionId = request.PollOptionId
+        });
+    }
+
+    [HttpGet("status/{submissionId:guid}")]
+    public async Task<ActionResult<VoteSubmissionStatusResponse>> GetVoteStatus(Guid submissionId, CancellationToken ct)
+    {
+        var submission = await _dbContext.VoteSubmissions
+            .AsNoTracking()
+            .FirstOrDefaultAsync(v => v.SubmissionId == submissionId, ct);
+
+        if (submission is null)
+        {
+            return NotFound();
+        }
+
+        return Ok(new VoteSubmissionStatusResponse
+        {
+            SubmissionId = submission.SubmissionId,
+            PollId = submission.PollId,
+            PollOptionId = submission.PollOptionId,
+            UserId = submission.UserId,
+            Architecture = submission.Architecture,
+            Status = submission.Status,
+            VoteId = submission.VoteId,
+            FailureReason = submission.FailureReason,
+            RequestStartedAtUtc = submission.RequestStartedAtUtc,
+            AcceptedAtUtc = submission.AcceptedAtUtc,
+            BrokerSentAtUtc = submission.BrokerSentAtUtc,
+            WorkerStartedAtUtc = submission.WorkerStartedAtUtc,
+            CompletedAtUtc = submission.CompletedAtUtc,
+            HttpResponseLatencyMs = submission.HttpResponseLatencyMs,
+            QueueDelayMs = submission.QueueDelayMs,
+            WorkerExecutionLatencyMs = submission.WorkerExecutionLatencyMs,
+            EndToEndLatencyMs = submission.EndToEndLatencyMs
         });
     }
 }

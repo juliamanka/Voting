@@ -6,9 +6,9 @@ public static class VotingMetrics
 {
     private static readonly Meter Meter = new("HybridVoting.Api.Metrics", "1.0.0");
 
-    public static readonly Histogram<double> VoteProcessingDurationSeconds =
+    public static readonly Histogram<double> VoteHttpResponseLatencySeconds =
         Meter.CreateHistogram<double>(
-            name: "vote_processing_duration_seconds",
+            name: "vote_http_response_latency_seconds",
             unit: "s",
-            description: "End-to-end processing time of a vote in synchronous API");
+            description: "HTTP response latency for POST /api/vote in hybrid API");
 }

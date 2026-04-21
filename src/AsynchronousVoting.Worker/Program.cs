@@ -4,6 +4,7 @@ using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using Voting.Application;
 using Voting.Infrastructure;
+using Voting.Infrastructure.Database;
 
 var configName = args
     .FirstOrDefault(a => a.StartsWith("--config=", StringComparison.OrdinalIgnoreCase))
@@ -20,6 +21,8 @@ if (!string.IsNullOrWhiteSpace(configName))
 }
 
 var metricsPort = builder.Configuration.GetValue<int?>("Hosting:MetricsPort") ?? 9184;
+var workerConcurrency = builder.Configuration.GetValue<int?>("Worker:ConcurrentMessageLimit") ?? 8;
+var workerPrefetch = builder.Configuration.GetValue<ushort?>("Worker:PrefetchCount") ?? 16;
 
 // 1. Application + Infrastructure
 builder.Services.AddInfrastructureServices(builder.Configuration);
@@ -29,6 +32,11 @@ builder.Services.AddApplicationServices();
 builder.Services.AddMassTransit(x =>
 {
     x.AddConsumer<CastVoteConsumer>();
+    x.AddEntityFrameworkOutbox<VotingDbContext>(o =>
+    {
+        o.UseSqlServer();
+        o.UseBusOutbox(); // Wiadomości wychodzące (Events) idą przez Outbox
+    });
 
     x.UsingRabbitMq((context, cfg) =>
     {
@@ -40,9 +48,13 @@ builder.Services.AddMassTransit(x =>
 
         cfg.ReceiveEndpoint("cast-vote-queue", e =>
         {
+            e.UseEntityFrameworkOutbox<VotingDbContext>(context);
+
+            // Tunable backpressure for reliable load testing.
+            e.ConcurrentMessageLimit = workerConcurrency;
+            e.PrefetchCount = workerPrefetch;
+
             e.ConfigureConsumer<CastVoteConsumer>(context);
-            e.ConcurrentMessageLimit = 40; // Znacznie więcej niż 4!
-            e.PrefetchCount = 80;
         });
     });
 });
@@ -53,6 +65,32 @@ builder.Services.AddOpenTelemetry()
     .ConfigureResource(resource => resource.AddService(serviceName))
     .WithMetrics(metrics => metrics
         .AddMeter("AsynchronousVoting.Worker.Metrics")
+        .AddView("vote_processing_duration_seconds", new ExplicitBucketHistogramConfiguration
+        {
+            Boundaries = new[]
+            {
+                0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5,
+                1, 2, 5, 10, 20, 30, 45, 60, 90, 120, 180, 240, 300
+            }
+        })
+        .AddView("vote_queue_delay_seconds", new ExplicitBucketHistogramConfiguration
+        {
+            Boundaries = new[]
+            {
+                0.001, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5,
+                1, 2, 5, 10, 20, 30, 45, 60, 90, 120, 180, 240, 300
+            }
+        })
+        .AddView("vote_worker_execution_duration_seconds", new ExplicitBucketHistogramConfiguration
+        {
+            Boundaries = new[]
+            {
+                0.001, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5,
+                1, 2, 5, 10, 20, 30, 45, 60, 90, 120, 180, 240, 300
+            }
+        })
+        .AddRuntimeInstrumentation()
+        .AddProcessInstrumentation()
         .AddPrometheusHttpListener(options =>
         {
             options.UriPrefixes = new[]

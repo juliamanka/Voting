@@ -16,6 +16,18 @@ public static class VotingMetrics
             name: "vote_processing_duration_seconds",
             unit: "s",
             description: "End-to-end processing time of a vote in async worker (enqueue -> DB)");
+
+    public static readonly Histogram<double> VoteQueueDelaySeconds =
+        Meter.CreateHistogram<double>(
+            name: "vote_queue_delay_seconds",
+            unit: "s",
+            description: "Time from broker send to worker consume start");
+
+    public static readonly Histogram<double> VoteWorkerExecutionDurationSeconds =
+        Meter.CreateHistogram<double>(
+            name: "vote_worker_execution_duration_seconds",
+            unit: "s",
+            description: "Time from worker consume start to persisted completion");
     
     public static readonly Counter<long> VotesProcessed =
         Meter.CreateCounter<long>(

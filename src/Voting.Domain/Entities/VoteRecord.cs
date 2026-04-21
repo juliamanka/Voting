@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using Voting.Domain.Enums;
 
 namespace Voting.Domain.Entities;
 
@@ -16,6 +17,8 @@ public class VoteRecord
     
     [MaxLength(256)]
     public string? UserId { get; set; }
+
+    public VoteStatus Status { get; set; }
 
     public DateTime Timestamp { get; set; }
     

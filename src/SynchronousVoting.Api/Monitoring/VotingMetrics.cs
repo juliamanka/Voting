@@ -6,6 +6,12 @@ public static class VotingMetrics
 {
     private static readonly Meter Meter = new("SynchronousVoting.Api.Metrics", "1.0.0");
 
+    public static readonly Histogram<double> VoteHttpResponseLatencySeconds =
+        Meter.CreateHistogram<double>(
+            name: "vote_http_response_latency_seconds",
+            unit: "s",
+            description: "HTTP response latency for POST /api/vote in synchronous API");
+
     public static readonly Histogram<double> VoteProcessingDurationSeconds =
         Meter.CreateHistogram<double>(
             name: "vote_processing_duration_seconds",

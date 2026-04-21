@@ -64,6 +64,18 @@ public sealed class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logge
                 title = "Poll is inactive";
                 detail = pollInactiveException.Message;
                 break;
+
+            case DuplicateVoteException duplicateVoteException:
+                status = StatusCodes.Status409Conflict;
+                title = "Duplicate vote";
+                detail = duplicateVoteException.Message;
+                break;
+
+            case IneligibleVoterException ineligibleVoterException:
+                status = StatusCodes.Status403Forbidden;
+                title = "Voter is not eligible";
+                detail = ineligibleVoterException.Message;
+                break;
         }
 
         return new ProblemDetails

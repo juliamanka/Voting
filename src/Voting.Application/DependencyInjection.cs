@@ -15,7 +15,11 @@ public static class DependencyInjection
         services.AddValidatorsFromAssembly(Assembly.GetExecutingAssembly());
 
         services.AddScoped<IVotingService, VotingService>();
+        services.AddScoped<IVoteWriteService, VoteWriteService>();
+        services.AddScoped<IVoteProjectionAndAuditService, VoteProjectionAndAuditService>();
         services.AddScoped<IPollService, PollService>();
+        services.AddScoped<IVoteValidationService, VoteValidationService>();
+        services.AddScoped<IEligibilityService, EligibilityService>();
 
         return services;
     }
