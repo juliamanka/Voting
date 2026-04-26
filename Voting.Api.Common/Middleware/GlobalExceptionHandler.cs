@@ -10,7 +10,6 @@ namespace Voting.Api.Common.Middleware;
 
 public sealed class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logger) : IExceptionHandler
 {
-
     public async ValueTask<bool> TryHandleAsync(
         HttpContext httpContext,
         Exception exception,
@@ -44,14 +43,15 @@ public sealed class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logge
                     .GroupBy(e => e.PropertyName)
                     .ToDictionary(k => k.Key, v => v.Select(e => e.ErrorMessage).ToArray());
 
-                return new ValidationProblemDetails(errors)
+                var validationProblemDetails = new ValidationProblemDetails(errors)
                 {
                     Status = status,
                     Title = title,
                     Detail = "One or more fields have not passed validation.",
                     Instance = httpContext.Request.Path
-                    
                 };
+                validationProblemDetails.Extensions["traceId"] = traceId;
+                return validationProblemDetails;
 
              case NotFoundException notFoundException:
                 status = StatusCodes.Status404NotFound; 
@@ -78,13 +78,15 @@ public sealed class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logge
                 break;
         }
 
-        return new ProblemDetails
+        var problemDetails = new ProblemDetails
         {
             Status = status,
             Title = title,
             Detail = detail,
             Instance = httpContext.Request.Path
-            
         };
+
+        problemDetails.Extensions["traceId"] = traceId;
+        return problemDetails;
     }
 }

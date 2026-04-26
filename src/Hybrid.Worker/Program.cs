@@ -3,6 +3,7 @@ using MassTransit;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using Voting.Application;
+using Voting.Application.DTOs;
 using Voting.Infrastructure;
 using Voting.Infrastructure.Database;
 
@@ -23,6 +24,7 @@ if (!string.IsNullOrWhiteSpace(configName))
 var metricsPort = builder.Configuration.GetValue<int?>("Hosting:MetricsPort") ?? 9284;
 var workerConcurrency = builder.Configuration.GetValue<int?>("Worker:ConcurrentMessageLimit") ?? 8;
 var workerPrefetch = builder.Configuration.GetValue<ushort?>("Worker:PrefetchCount") ?? 16;
+var enableProjectionProjector = builder.Configuration.GetValue<bool?>("Worker:EnableProjectionProjector") ?? true;
 
 // 1. Application + Infrastructure
 builder.Services.AddInfrastructureServices(builder.Configuration);
@@ -45,14 +47,19 @@ builder.Services.AddMassTransit(x =>
             h.Username(builder.Configuration["RabbitMq:Username"] ?? "guest");
             h.Password(builder.Configuration["RabbitMq:Password"] ?? "guest");
         });
-        
-        cfg.ReceiveEndpoint("hybrid-vote-recorded-events", e =>
+
+        if (enableProjectionProjector)
         {
-            e.UseEntityFrameworkOutbox<VotingDbContext>(context);
-            e.ConfigureConsumer<VoteRecordedEventConsumer>(context);
-            e.ConcurrentMessageLimit = workerConcurrency;
-            e.PrefetchCount = workerPrefetch;
-        });
+            cfg.Message<PollResultsUpdatedEvent>(m => m.SetEntityName("hybrid-poll-results-updated-exchange"));
+            cfg.ReceiveEndpoint("hybrid-vote-recorded-events", e =>
+            {
+                e.UseEntityFrameworkOutbox<VotingDbContext>(context);
+                e.UseMessageRetry(ConfigureSqlTransientRetry);
+                e.ConfigureConsumer<VoteRecordedEventConsumer>(context);
+                e.ConcurrentMessageLimit = workerConcurrency;
+                e.PrefetchCount = workerPrefetch;
+            });
+        }
     });
 });
 
@@ -97,3 +104,21 @@ builder.Services.AddOpenTelemetry()
 
 var host = builder.Build();
 host.Run();
+
+static void ConfigureSqlTransientRetry(IRetryConfigurator retry)
+{
+    retry.Handle<Microsoft.Data.SqlClient.SqlException>(IsTransientSqlException);
+    retry.Handle<InvalidOperationException>(ex =>
+        ex.InnerException is Microsoft.Data.SqlClient.SqlException sqlException &&
+        IsTransientSqlException(sqlException));
+    retry.Handle<TimeoutException>();
+    retry.Intervals(
+        TimeSpan.FromMilliseconds(100),
+        TimeSpan.FromMilliseconds(250),
+        TimeSpan.FromMilliseconds(500));
+}
+
+static bool IsTransientSqlException(Microsoft.Data.SqlClient.SqlException exception)
+{
+    return exception.Number is 1205 or -2 or 4060 or 40197 or 40501 or 40613 or 49918 or 49919 or 49920;
+}

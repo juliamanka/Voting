@@ -56,7 +56,8 @@ public class AsyncVoteNotifier : IVoteNotifier
                 Architecture = "async",
                 Status = VoteStatus.Pending,
                 RequestStartedAtUtc = requestStartedAtUtc,
-                AcceptedAtUtc = acceptedAtUtc
+                AcceptedAtUtc = acceptedAtUtc,
+                HttpResponseLatencyMs = Math.Max(0L, (long)(acceptedAtUtc - requestStartedAtUtc).TotalMilliseconds)
             };
 
             await _dbContext.VoteSubmissions.AddAsync(submission, ct);

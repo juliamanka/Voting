@@ -17,12 +17,13 @@ public static class DepedencyInjection
         {
             throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
         }
-        
-        services.AddDbContext<VotingDbContext>(options =>
-            options.UseSqlServer(
-                connectionString
-            )
-        );
+
+        void ConfigureOptions(DbContextOptionsBuilder options)
+        {
+            options.UseSqlServer(connectionString);
+        }
+
+        services.AddDbContext<VotingDbContext>(ConfigureOptions);
         
         services.AddScoped<IVoteRepository, VoteRepository>();
         services.AddScoped<IPollRepository, PollRepository>();

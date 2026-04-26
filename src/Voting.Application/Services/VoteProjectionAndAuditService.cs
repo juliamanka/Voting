@@ -9,16 +9,13 @@ public class VoteProjectionAndAuditService : IVoteProjectionAndAuditService
 {
     private readonly IPollRepository _pollRepository;
     private readonly IPollResultsProjectionRepository _projectionRepository;
-    private readonly IVoteAuditLogRepository _auditLogRepository;
 
     public VoteProjectionAndAuditService(
         IPollRepository pollRepository,
-        IPollResultsProjectionRepository projectionRepository,
-        IVoteAuditLogRepository auditLogRepository)
+        IPollResultsProjectionRepository projectionRepository)
     {
         _pollRepository = pollRepository;
         _projectionRepository = projectionRepository;
-        _auditLogRepository = auditLogRepository;
     }
 
     public async Task<PollResults> ApplyVoteAcceptedAsync(
@@ -26,19 +23,19 @@ public class VoteProjectionAndAuditService : IVoteProjectionAndAuditService
         string architecture,
         CancellationToken cancellationToken)
     {
+        var projectionDelayMs = ReadProjectionDelayMs();
+        if (projectionDelayMs > 0)
+        {
+            await Task.Delay(projectionDelayMs, cancellationToken);
+        }
+
         var poll = await _pollRepository.GetByIdAsync(vote.PollId, cancellationToken)
-            ?? throw new InvalidOperationException($"Poll {vote.PollId} not found for projection update.");
+            ?? throw new InvalidOperationException($"Poll {vote.PollId} not found for projection rebuild.");
 
-        var projection = await _projectionRepository.GetOrCreateAsync(poll, cancellationToken);
-        var optionProjection = projection.Options.FirstOrDefault(o => o.PollOptionId == vote.PollOptionId)
-            ?? throw new InvalidOperationException(
-                $"Projection option {vote.PollOptionId} not found for poll {vote.PollId}.");
-
-        optionProjection.VoteCount += 1;
-        projection.TotalVotes += 1;
-        projection.LastUpdatedAtUtc = DateTime.UtcNow;
-
-        await _auditLogRepository.AddAsync(
+        var loggedAtUtc = DateTime.UtcNow;
+        var projection = await _projectionRepository.ApplyVoteAcceptedAsync(
+            poll,
+            vote,
             new VoteAuditLog
             {
                 AuditLogId = Guid.NewGuid(),
@@ -48,11 +45,9 @@ public class VoteProjectionAndAuditService : IVoteProjectionAndAuditService
                 UserId = vote.UserId ?? string.Empty,
                 Architecture = architecture,
                 Action = "VoteAccepted",
-                LoggedAtUtc = projection.LastUpdatedAtUtc
+                LoggedAtUtc = loggedAtUtc
             },
             cancellationToken);
-
-        await _projectionRepository.SaveChangesAsync(cancellationToken);
 
         return new PollResults
         {
@@ -70,5 +65,12 @@ public class VoteProjectionAndAuditService : IVoteProjectionAndAuditService
                 })
                 .ToList()
         };
+    }
+
+    private static int ReadProjectionDelayMs()
+    {
+        var raw = Environment.GetEnvironmentVariable("Chaos__ProjectionDelayMs")
+                  ?? Environment.GetEnvironmentVariable("CHAOS_PROJECTION_DELAY_MS");
+        return int.TryParse(raw, out var delayMs) && delayMs > 0 ? delayMs : 0;
     }
 }

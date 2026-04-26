@@ -5,12 +5,7 @@ namespace Hybrid.Worker.Monitoring;
 public static class VotingMetrics
 {
     private static readonly Meter Meter = new("HybridVoting.Worker.Metrics", "1.0.0");
-
-    /// <summary>
-    /// Czas przetwarzania głosu w architekturze asynchronicznej:
-    /// od momentu enqueue (EnqueuedAtUtc) do zakończenia zapisu w bazie.
-    /// Jednostka: sekundy.
-    /// </summary>
+    
     public static readonly Histogram<double> VoteProcessingDurationSeconds =
         Meter.CreateHistogram<double>(
             name: "vote_processing_duration_seconds",

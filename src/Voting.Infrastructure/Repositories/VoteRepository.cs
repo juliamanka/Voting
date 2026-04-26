@@ -55,4 +55,11 @@ public class VoteRepository : IVoteRepository
             .Select(g => new { OptionId = g.Key, Count = g.Count() })
             .ToDictionaryAsync(x => x.OptionId, x => x.Count, cancellationToken);
     }
+
+    public async Task<DateTime?> GetLatestVoteTimestampAsync(Guid pollId, CancellationToken cancellationToken)
+    {
+        return await _context.Votes
+            .Where(v => v.PollId == pollId && v.Status == VoteStatus.Counted)
+            .MaxAsync(v => (DateTime?)v.Timestamp, cancellationToken);
+    }
 }

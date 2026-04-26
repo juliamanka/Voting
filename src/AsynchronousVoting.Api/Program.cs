@@ -15,6 +15,7 @@ using Voting.Application;
 using Voting.Application.Interfaces;
 using Voting.Infrastructure;
 using System.Threading.RateLimiting;
+using Voting.Application.DTOs;
 using Voting.Infrastructure.Database;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -52,9 +53,9 @@ builder.Services.AddRateLimiter(options =>
             partitionKey: "global",
             factory: _ => new FixedWindowRateLimiterOptions
             {
-                PermitLimit = 120, // Więcej niż testowane 100 RPS
+                PermitLimit = 400, 
                 Window = TimeSpan.FromSeconds(1),
-                QueueLimit = 0,    // Lepiej odrzucać od razu niż buforować na API
+                QueueLimit = 0,    
                 QueueProcessingOrder = QueueProcessingOrder.OldestFirst
             }));
 });
@@ -141,7 +142,7 @@ builder.Services.AddMassTransit(x =>
     {
         o.UseSqlServer();
         o.UseBusOutbox();
-        o.DisableInboxCleanupService(); // API zazwyczaj tylko wysyła, nie potrzebuje cleanupu inboxa
+        o.DisableInboxCleanupService(); 
     });
 
     x.UsingRabbitMq((context, cfg) =>
@@ -151,7 +152,9 @@ builder.Services.AddMassTransit(x =>
             h.Username(rabbitUser);
             h.Password(rabbitPass);
         });
-
+        
+        cfg.Message<PollResultsUpdatedEvent>(m => m.SetEntityName("async-poll-results-updated-exchange"));
+        
         cfg.ReceiveEndpoint("async-poll-results-updated-events",
             e =>
             {

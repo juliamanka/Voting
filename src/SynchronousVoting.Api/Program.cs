@@ -12,6 +12,7 @@ using Voting.Api.Common.RequestTiming;
 using Voting.Application;
 using Voting.Infrastructure;
 using Voting.Infrastructure.Database;
+using SynchronousVoting.Api.Hubs;
 
 Log.Logger = new LoggerConfiguration()
     .ReadFrom.Configuration(new ConfigurationBuilder()
@@ -56,9 +57,9 @@ try
                 partitionKey: "global",
                 factory: _ => new FixedWindowRateLimiterOptions
                 {
-                    PermitLimit = 120, // Więcej niż testowane 100 RPS
+                    PermitLimit = 400,
                     Window = TimeSpan.FromSeconds(1),
-                    QueueLimit = 0,    // Lepiej odrzucać od razu niż buforować na API
+                    QueueLimit = 0,
                     QueueProcessingOrder = QueueProcessingOrder.OldestFirst
                 }));
     });
@@ -66,11 +67,12 @@ try
     builder.Services.AddApplicationServices();
     builder.Services.AddInfrastructureServices(builder.Configuration);
     builder.Services.AddHttpContextAccessor();
+    builder.Services.AddSignalR();
 
     builder.Services.AddControllers();
 
     builder.Services.AddFluentValidationAutoValidation();
-    builder.Services.AddProblemDetails();
+    builder.Services.AddGlobalExceptionHandling();
 
     builder.Services.AddEndpointsApiExplorer();
     builder.Services.AddSwaggerGen(c =>
@@ -145,7 +147,6 @@ try
     app.ApplyMigrations();
 
     app.UseRequestTiming();
-    app.UseExceptionHandler();
 
     if (app.Environment.IsDevelopment())
     {
@@ -165,6 +166,8 @@ try
     app.UseCors("AllowFrontend");
     app.UseOpenTelemetryPrometheusScrapingEndpoint();
     app.MapControllers();
+    app.MapHub<ResultsHub>("/hubs/results");
+    app.MapHub<ResultsHub>("/hubs/votes");
 
     if (app.Environment.IsDevelopment())
     {

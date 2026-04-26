@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using Hybrid.Worker.Monitoring;
 using MassTransit;
@@ -9,7 +10,6 @@ namespace Hybrid.Worker.Messaging.Consumers;
 public class VoteRecordedEventConsumer : IConsumer<VoteRecordedEvent>
 {
     private readonly IVoteProjectionAndAuditService _voteProjectionAndAuditService;
-    private readonly IConfiguration _configuration;
     private readonly string _instanceId;
 
     public VoteRecordedEventConsumer(
@@ -17,8 +17,7 @@ public class VoteRecordedEventConsumer : IConsumer<VoteRecordedEvent>
         IConfiguration configuration)
     {
         _voteProjectionAndAuditService = voteProjectionAndAuditService;
-        _configuration = configuration;
-        _instanceId = _configuration.GetValue<string?>("Worker:WorkerId") ?? "worker";
+        _instanceId = configuration.GetValue<string?>("Worker:WorkerId") ?? "worker";
     }
 
     public async Task Consume(ConsumeContext<VoteRecordedEvent> context)
@@ -41,7 +40,7 @@ public class VoteRecordedEventConsumer : IConsumer<VoteRecordedEvent>
         {
             { "architecture", "hybrid" },
             { "worker_id", _instanceId },
-            { "status", "Counted" }
+            { "status", "Projected" }
         };
 
         VotingMetrics.VoteProcessingDurationSeconds.Record(

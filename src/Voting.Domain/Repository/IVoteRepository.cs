@@ -11,4 +11,6 @@ public interface IVoteRepository
     Task<bool> HasUserVotedAsync(Guid pollId, string userId, CancellationToken cancellationToken);
     
     Task<Dictionary<Guid, int>> GetVoteCountsByPollIdAsync(Guid pollId, CancellationToken cancellationToken);
+
+    Task<DateTime?> GetLatestVoteTimestampAsync(Guid pollId, CancellationToken cancellationToken);
 }

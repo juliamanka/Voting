@@ -11,6 +11,7 @@ using Serilog;
 using Voting.Api.Common;
 using Voting.Api.Common.RequestTiming;
 using Voting.Application;
+using Voting.Application.DTOs;
 using Voting.Application.Interfaces;
 using Voting.Infrastructure;
 using Voting.Infrastructure.Database;
@@ -46,9 +47,9 @@ builder.Services.AddRateLimiter(options =>
             partitionKey: "global",
             factory: _ => new FixedWindowRateLimiterOptions
             {
-                PermitLimit = 120, // Więcej niż testowane 100 RPS
+                PermitLimit = 400,
                 Window = TimeSpan.FromSeconds(1),
-                QueueLimit = 0,    // Lepiej odrzucać od razu niż buforować na API
+                QueueLimit = 0, 
                 QueueProcessingOrder = QueueProcessingOrder.OldestFirst
             }));
 });
@@ -144,6 +145,8 @@ builder.Services.AddMassTransit(x =>
             h.Password(rabbitPass);
         });
 
+        cfg.Message<PollResultsUpdatedEvent>(m => m.SetEntityName("hybrid-poll-results-updated-exchange"));
+        
         cfg.ReceiveEndpoint("hybrid-poll-results-updated-events", e =>
         {
             e.UseEntityFrameworkOutbox<VotingDbContext>(context);

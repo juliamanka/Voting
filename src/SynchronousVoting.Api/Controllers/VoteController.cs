@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.AspNetCore.SignalR;
+using SynchronousVoting.Api.Hubs;
 using SynchronousVoting.Api.Monitoring;
 using Voting.Api.Common.RequestTiming;
 using Voting.Application.DTOs;
@@ -13,19 +15,19 @@ namespace SynchronousVoting.Api.Controllers;
 public class VoteController : ControllerBase
 {
     private readonly IVotingService _votingService;
+    private readonly IPollService _pollService;
+    private readonly IHubContext<ResultsHub> _hubContext;
 
-    public VoteController(IVotingService votingService)
+    public VoteController(
+        IVotingService votingService,
+        IPollService pollService,
+        IHubContext<ResultsHub> hubContext)
     {
         _votingService = votingService;
+        _pollService = pollService;
+        _hubContext = hubContext;
     }
-
-    /// <summary>
-    /// Synchronicznie przetwarza i zapisuje głos.
-    /// Klient czeka na pełne przetworzenie i zapis do bazy.
-    /// </summary>
-    /// <param name="request">Dane głosu (PollId, OptionId)</param>
-    /// <param name="cancellationToken">Token do anulowania operacji</param>
-    /// <returns>Potwierdzenie zapisu głosu (VoteReceipt)</returns>
+    
     [HttpPost]
     [ProducesResponseType(typeof(VoteResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -35,6 +37,14 @@ public class VoteController : ControllerBase
         CancellationToken cancellationToken)
     {
         var receipt = await _votingService.ProcessVoteAsync(request, cancellationToken);
+        var updatedResults = await _pollService.GetVotesForPoll(request.PollId, cancellationToken);
+        if (updatedResults is not null)
+        {
+            await _hubContext.Clients
+                .Group(request.PollId.ToString())
+                .SendAsync("PollResultsUpdated", updatedResults, cancellationToken);
+        }
+
         var responseLatency = RequestTimingContext.GetElapsedSinceRequestStart(HttpContext);
 
         var tags = new KeyValuePair<string, object?>[]

@@ -14,13 +14,13 @@ namespace HybridVoting.Api.Controllers;
 [ApiController]
 [Route("api/vote")]
 [EnableRateLimiting("votes-policy")]
-public class VotesController : ControllerBase
+public class VoteController : ControllerBase
 {
     private readonly IVoteWriteService _voteWriteService;
     private readonly IPublishEndpoint _publishEndpoint;
     private readonly VotingDbContext _dbContext;
 
-    public VotesController(
+    public VoteController(
         IVoteWriteService voteWriteService,
         IPublishEndpoint publishEndpoint,
         VotingDbContext dbContext)

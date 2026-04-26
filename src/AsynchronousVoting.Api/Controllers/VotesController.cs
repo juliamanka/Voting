@@ -17,17 +17,17 @@ namespace AsynchronousVoting.Api.Controllers;
 public class VotesController : ControllerBase
 {
     private readonly IVoteNotifier _voteNotifier;
-    private readonly IVoteValidationService _voteValidationService;
     private readonly VotingDbContext _dbContext;
+    private readonly IVoteValidationService _voteValidationService;
 
     public VotesController(
         IVoteNotifier voteNotifier,
-        IVoteValidationService voteValidationService,
-        VotingDbContext dbContext)
+        VotingDbContext dbContext,
+        IVoteValidationService voteValidationService)
     {
         _voteNotifier = voteNotifier;
-        _voteValidationService = voteValidationService;
         _dbContext = dbContext;
+        _voteValidationService = voteValidationService;
     }
 
     [HttpPost]
@@ -43,14 +43,6 @@ public class VotesController : ControllerBase
         await _voteValidationService.ValidateAsync(voteRequest, ct);
 
         var submissionId = await _voteNotifier.NotifyVoteAsync(request.PollId, request.PollOptionId, request.UserId, ct);
-
-        await _dbContext.Database.ExecuteSqlInterpolatedAsync(
-            $"""
-              UPDATE VoteSubmissions
-              SET HttpResponseLatencyMs = DATEDIFF_BIG(MILLISECOND, RequestStartedAtUtc, SYSUTCDATETIME())
-              WHERE SubmissionId = {submissionId}
-              """,
-            ct);
 
         var responseLatency = RequestTimingContext.GetElapsedSinceRequestStart(HttpContext);
         VotingMetrics.VoteHttpResponseLatencySeconds.Record(responseLatency.TotalSeconds);

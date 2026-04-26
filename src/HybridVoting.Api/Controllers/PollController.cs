@@ -24,9 +24,9 @@ public class PollController : ControllerBase
     }
     
     [HttpGet("{id}")]
-    public async Task<IActionResult> GetPollById(Guid id)
-    {   
-        var poll = await _pollService.GetPollWithOptions(id, new CancellationToken());
+    public async Task<IActionResult> GetPollById(Guid id, CancellationToken cancellationToken)
+    {
+        var poll = await _pollService.GetPollWithOptions(id, cancellationToken);
         return Ok(poll);
     }
 }

@@ -10,24 +10,18 @@ public class PollOption
     public Guid PollOptionId { get; set; }
 
     [Required]
-    public Guid PollId { get; set; } // Klucz obcy do Ankiety
+    public Guid PollId { get; set; } 
 
     [Required]
     [MaxLength(200)]
-    public string Text { get; set; } // Treść opcji, np. "Tak", "Nie"
-
-    /// <summary>
-    /// Kolejność wyświetlania opcji na froncie (np. 1, 2, 3).
-    /// </summary>
-    public int OrderIndex { get; set; }
-
-    // === Relacje ===
+    public string Text { get; set; } 
     
-    [JsonIgnore] // Zapobiega cyklom przy serializacji
+    public int OrderIndex { get; set; }
+    
+    [JsonIgnore] 
     [ForeignKey(nameof(PollId))]
     public virtual Poll Poll { get; set; }
 
-    // Opcjonalnie: lista głosów oddanych na TĘ konkretną opcję
     public virtual ICollection<VoteRecord> Votes { get; set; }
 
     public PollOption()

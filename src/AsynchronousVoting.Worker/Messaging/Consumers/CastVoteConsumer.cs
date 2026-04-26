@@ -15,26 +15,28 @@ namespace AsynchronousVoting.Worker.Messaging.Consumers;
 
 public class CastVoteConsumer : IConsumer<CastVoteCommand>
 {
+    private readonly record struct SubmissionFailure(VoteStatus Status, string FailureReason);
+
     private readonly VotingDbContext _dbContext;
-    private readonly IVoteValidationService _voteValidationService;
-    private readonly IVoteProjectionAndAuditService _voteProjectionAndAuditService;
+    private readonly IVoteWriteService _voteWriteService;
     private readonly ILogger<CastVoteConsumer> _logger;
     private readonly IConfiguration _configuration;
     private readonly string _instanceId;
+    private readonly IVoteProjectionAndAuditService _voteProjectionAndAuditService;
 
     public CastVoteConsumer(
         VotingDbContext dbContext,
-        IVoteValidationService voteValidationService,
-        IVoteProjectionAndAuditService voteProjectionAndAuditService,
+        IVoteWriteService voteWriteService,
         ILogger<CastVoteConsumer> logger,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        IVoteProjectionAndAuditService voteProjectionAndAuditService)
     {
         _dbContext = dbContext;
-        _voteValidationService = voteValidationService;
-        _voteProjectionAndAuditService = voteProjectionAndAuditService;
+        _voteWriteService = voteWriteService;
         _logger = logger;
         _configuration = configuration;
-        _instanceId = _configuration.GetValue<string?>("Worker:WorkerId");
+        _instanceId = _configuration.GetValue<string?>("Worker:WorkerId") ?? "worker";
+        _voteProjectionAndAuditService = voteProjectionAndAuditService;
     }
 
     public async Task Consume(ConsumeContext<CastVoteCommand> context)
@@ -76,114 +78,48 @@ public class CastVoteConsumer : IConsumer<CastVoteCommand>
 
         try
         {
-            await _voteValidationService.ValidateAsync(voteRequest, context.CancellationToken);
-
-            vote = new VoteRecord
-            {
-                VoteId = Guid.NewGuid(),
-                PollId = msg.PollId,
-                PollOptionId = msg.PollOptionId,
-                UserId = msg.UserId,
-                Status = VoteStatus.Counted,
-                Timestamp = DateTime.UtcNow
-            };
-
-            _dbContext.Votes.Add(vote);
-            submission.Status = VoteStatus.Counted;
-            submission.VoteId = vote.VoteId;
-            submission.FailureReason = null;
-            await _dbContext.SaveChangesAsync(context.CancellationToken);
-
-            var projection = await _voteProjectionAndAuditService.ApplyVoteAcceptedAsync(
+            vote = await _voteWriteService.WriteVoteAsync(voteRequest, context.CancellationToken);
+            
+            var results = await _voteProjectionAndAuditService.ApplyVoteAcceptedAsync(
                 vote,
                 "async",
                 context.CancellationToken);
 
             var completedAtUtc = DateTime.UtcNow;
-            await FinalizeSubmissionAsync(
+
+            CompleteSubmission(
                 submission,
                 VoteStatus.Counted,
                 msg.RequestStartedAtUtc,
                 consumeStartedAtUtc,
                 completedAtUtc,
-                context.CancellationToken,
                 vote.VoteId);
 
-            RecordOutcomeMetrics("async", VoteStatus.Counted, msg.RequestStartedAtUtc, brokerSentAtUtc, consumeStartedAtUtc, completedAtUtc, _instanceId);
+            await context.Publish(
+                new PollResultsUpdatedEvent(results), 
+                context.CancellationToken);
 
-            await context.Publish(new PollResultsUpdatedEvent(projection));
+            RecordOutcomeMetrics("async", VoteStatus.Counted, msg.RequestStartedAtUtc, brokerSentAtUtc, consumeStartedAtUtc, completedAtUtc, _instanceId);
+            
+            await _dbContext.SaveChangesAsync(context.CancellationToken);
         }
-        catch (DuplicateVoteException ex)
+        catch (Exception ex)
         {
-            var completedAtUtc = await MarkSubmissionAsync(
-                submission,
-                VoteStatus.Duplicate,
-                ex.Message,
-                msg.RequestStartedAtUtc,
-                consumeStartedAtUtc,
-                context.CancellationToken);
-            RecordOutcomeMetrics("async", VoteStatus.Duplicate, msg.RequestStartedAtUtc, brokerSentAtUtc, consumeStartedAtUtc, completedAtUtc, _instanceId);
-        }
-        catch (ValidationException ex)
-        {
-            var completedAtUtc = await MarkSubmissionAsync(
-                submission,
-                VoteStatus.Rejected,
-                ex.Message,
-                msg.RequestStartedAtUtc,
-                consumeStartedAtUtc,
-                context.CancellationToken);
-            RecordOutcomeMetrics("async", VoteStatus.Rejected, msg.RequestStartedAtUtc, brokerSentAtUtc, consumeStartedAtUtc, completedAtUtc, _instanceId);
-        }
-        catch (NotFoundException ex)
-        {
-            var completedAtUtc = await MarkSubmissionAsync(
-                submission,
-                VoteStatus.Rejected,
-                ex.Message,
-                msg.RequestStartedAtUtc,
-                consumeStartedAtUtc,
-                context.CancellationToken);
-            RecordOutcomeMetrics("async", VoteStatus.Rejected, msg.RequestStartedAtUtc, brokerSentAtUtc, consumeStartedAtUtc, completedAtUtc, _instanceId);
-        }
-        catch (PollInactiveException ex)
-        {
-            var completedAtUtc = await MarkSubmissionAsync(
-                submission,
-                VoteStatus.Rejected,
-                ex.Message,
-                msg.RequestStartedAtUtc,
-                consumeStartedAtUtc,
-                context.CancellationToken);
-            RecordOutcomeMetrics("async", VoteStatus.Rejected, msg.RequestStartedAtUtc, brokerSentAtUtc, consumeStartedAtUtc, completedAtUtc, _instanceId);
-        }
-        catch (DbUpdateException ex) when (ex.IsUniqueConstraintViolation())
-        {
-            if (vote is not null)
+            var failure = MapSubmissionFailure(ex, vote);
+            if (failure is null)
             {
-                _dbContext.Entry(vote).State = EntityState.Detached;
+                _logger.LogError(ex, "Vote submission {SubmissionId} failed unexpectedly.", submission.SubmissionId);
+                failure = new SubmissionFailure(VoteStatus.Failed, ex.Message);
             }
 
             var completedAtUtc = await MarkSubmissionAsync(
                 submission,
-                VoteStatus.Duplicate,
-                "Vote already exists.",
+                failure.Value.Status,
+                failure.Value.FailureReason,
                 msg.RequestStartedAtUtc,
                 consumeStartedAtUtc,
                 context.CancellationToken);
-            RecordOutcomeMetrics("async", VoteStatus.Duplicate, msg.RequestStartedAtUtc, brokerSentAtUtc, consumeStartedAtUtc, completedAtUtc, _instanceId);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Vote submission {SubmissionId} failed unexpectedly.", submission.SubmissionId);
-            var completedAtUtc = await MarkSubmissionAsync(
-                submission,
-                VoteStatus.Failed,
-                ex.Message,
-                msg.RequestStartedAtUtc,
-                consumeStartedAtUtc,
-                context.CancellationToken);
-            RecordOutcomeMetrics("async", VoteStatus.Failed, msg.RequestStartedAtUtc, brokerSentAtUtc, consumeStartedAtUtc, completedAtUtc, _instanceId);
+            RecordOutcomeMetrics("async", failure.Value.Status, msg.RequestStartedAtUtc, brokerSentAtUtc, consumeStartedAtUtc, completedAtUtc, _instanceId);
         }
     }
 
@@ -205,30 +141,56 @@ public class CastVoteConsumer : IConsumer<CastVoteCommand>
         DateTime workerStartedAtUtc,
         CancellationToken cancellationToken)
     {
-        submission.Status = status;
-        submission.VoteId = null;
-        submission.FailureReason = failureReason;
-        await _dbContext.SaveChangesAsync(cancellationToken);
         var completedAtUtc = DateTime.UtcNow;
-        await FinalizeSubmissionAsync(
+        CompleteSubmission(
             submission,
             status,
             requestStartedAtUtc,
             workerStartedAtUtc,
             completedAtUtc,
-            cancellationToken,
             null,
             failureReason);
+        await _dbContext.SaveChangesAsync(cancellationToken);
         return completedAtUtc;
     }
 
-    private async Task FinalizeSubmissionAsync(
+    private SubmissionFailure? MapSubmissionFailure(Exception exception, VoteRecord? vote)
+    {
+        switch (exception)
+        {
+            case DuplicateVoteException duplicateVoteException:
+                return new SubmissionFailure(VoteStatus.Duplicate, duplicateVoteException.Message);
+
+            case DbUpdateException dbUpdateException when dbUpdateException.IsUniqueConstraintViolation():
+                if (vote is not null)
+                {
+                    _dbContext.Entry(vote).State = EntityState.Detached;
+                }
+                return new SubmissionFailure(VoteStatus.Duplicate, "Vote already exists.");
+
+            case ValidationException validationException:
+                return new SubmissionFailure(VoteStatus.Rejected, validationException.Message);
+
+            case NotFoundException notFoundException:
+                return new SubmissionFailure(VoteStatus.Rejected, notFoundException.Message);
+
+            case PollInactiveException pollInactiveException:
+                return new SubmissionFailure(VoteStatus.Rejected, pollInactiveException.Message);
+
+            case IneligibleVoterException ineligibleVoterException:
+                return new SubmissionFailure(VoteStatus.Rejected, ineligibleVoterException.Message);
+
+            default:
+                return null;
+        }
+    }
+
+    private static void CompleteSubmission(
         VoteSubmission submission,
         VoteStatus status,
         DateTime requestStartedAtUtc,
         DateTime workerStartedAtUtc,
         DateTime completedAtUtc,
-        CancellationToken cancellationToken,
         Guid? voteId = null,
         string? failureReason = null)
     {
@@ -238,7 +200,6 @@ public class CastVoteConsumer : IConsumer<CastVoteCommand>
         submission.CompletedAtUtc = completedAtUtc;
         submission.WorkerExecutionLatencyMs = Math.Max(0L, (long)(completedAtUtc - workerStartedAtUtc).TotalMilliseconds);
         submission.EndToEndLatencyMs = Math.Max(0L, (long)(completedAtUtc - requestStartedAtUtc).TotalMilliseconds);
-        await _dbContext.SaveChangesAsync(cancellationToken);
     }
 
     private static void RecordOutcomeMetrics(
