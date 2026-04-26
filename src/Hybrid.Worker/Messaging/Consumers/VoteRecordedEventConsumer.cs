@@ -40,7 +40,7 @@ public class VoteRecordedEventConsumer : IConsumer<VoteRecordedEvent>
         {
             { "architecture", "hybrid" },
             { "worker_id", _instanceId },
-            { "status", "Projected" }
+            { "status", "Counted" }
         };
 
         VotingMetrics.VoteProcessingDurationSeconds.Record(
