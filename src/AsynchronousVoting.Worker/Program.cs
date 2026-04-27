@@ -4,6 +4,7 @@ using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using Voting.Application;
 using Voting.Application.DTOs;
+using Voting.Application.Messaging;
 using Voting.Infrastructure;
 using Voting.Infrastructure.Database;
 
@@ -24,18 +25,20 @@ if (!string.IsNullOrWhiteSpace(configName))
 var metricsPort = builder.Configuration.GetValue<int?>("Hosting:MetricsPort") ?? 9184;
 var workerConcurrency = builder.Configuration.GetValue<int?>("Worker:ConcurrentMessageLimit") ?? 8;
 var workerPrefetch = builder.Configuration.GetValue<ushort?>("Worker:PrefetchCount") ?? 16;
-var enableProjectionProjector = builder.Configuration.GetValue<bool?>("Worker:EnableProjectionProjector") ?? true;
+var projectionConcurrency = builder.Configuration.GetValue<int?>("Worker:ProjectionConcurrentMessageLimit") ?? workerConcurrency;
+var projectionPrefetch = builder.Configuration.GetValue<ushort?>("Worker:ProjectionPrefetchCount") ?? workerPrefetch;
 
 builder.Services.AddInfrastructureServices(builder.Configuration);
 builder.Services.AddApplicationServices();
 
 builder.Services.AddMassTransit(x =>
 {
-    x.AddConsumer<CastVoteConsumer>();
+    x.AddConsumer<VoteSaverConsumer>();
+    x.AddConsumer<VoteProjectionConsumer>();
     x.AddEntityFrameworkOutbox<VotingDbContext>(o =>
     {
         o.UseSqlServer();
-        o.UseBusOutbox(); 
+        o.UseBusOutbox();
     });
 
     x.UsingRabbitMq((context, cfg) =>
@@ -45,10 +48,12 @@ builder.Services.AddMassTransit(x =>
             h.Username(builder.Configuration["RabbitMq:Username"] ?? "guest");
             h.Password(builder.Configuration["RabbitMq:Password"] ?? "guest");
         });
-        
+
         cfg.Message<PollResultsUpdatedEvent>(m => m.SetEntityName("async-poll-results-updated-exchange"));
-        
-        cfg.ReceiveEndpoint("cast-vote-queue", e =>
+        // Use a dedicated exchange so async VoteRecordedEvent messages do not reach the hybrid worker queue.
+        cfg.Message<VoteRecordedEvent>(m => m.SetEntityName("async-vote-recorded-exchange"));
+
+        cfg.ReceiveEndpoint(VoteQueueNames.AsyncCastVoteQueue, e =>
         {
             e.UseEntityFrameworkOutbox<VotingDbContext>(context);
             e.UseMessageRetry(ConfigureSqlTransientRetry);
@@ -56,7 +61,18 @@ builder.Services.AddMassTransit(x =>
             e.ConcurrentMessageLimit = workerConcurrency;
             e.PrefetchCount = workerPrefetch;
 
-            e.ConfigureConsumer<CastVoteConsumer>(context);
+            e.ConfigureConsumer<VoteSaverConsumer>(context);
+        });
+
+        cfg.ReceiveEndpoint(VoteQueueNames.AsyncVoteRecordedEventsQueue, e =>
+        {
+            e.UseEntityFrameworkOutbox<VotingDbContext>(context);
+            e.UseMessageRetry(ConfigureSqlTransientRetry);
+
+            e.ConcurrentMessageLimit = projectionConcurrency;
+            e.PrefetchCount = projectionPrefetch;
+
+            e.ConfigureConsumer<VoteProjectionConsumer>(context);
         });
     });
 });
