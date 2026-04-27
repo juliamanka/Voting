@@ -1,3 +1,4 @@
+using AsynchronousVoting.Worker.Monitoring;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Voting.Application.DTOs;
@@ -17,15 +18,18 @@ public class VoteSaverConsumer : IConsumer<CastVoteCommand>
     private readonly VotingDbContext _dbContext;
     private readonly IVoteWriteService _voteWriteService;
     private readonly ILogger<VoteSaverConsumer> _logger;
+    private readonly string _instanceId;
 
     public VoteSaverConsumer(
         VotingDbContext dbContext,
         IVoteWriteService voteWriteService,
-        ILogger<VoteSaverConsumer> logger)
+        ILogger<VoteSaverConsumer> logger,
+        IConfiguration configuration)
     {
         _dbContext = dbContext;
         _voteWriteService = voteWriteService;
         _logger = logger;
+        _instanceId = configuration.GetValue<string?>("Worker:WorkerId") ?? "worker";
     }
 
     public async Task Consume(ConsumeContext<CastVoteCommand> context)
@@ -79,6 +83,10 @@ public class VoteSaverConsumer : IConsumer<CastVoteCommand>
             submission.CompletedAtUtc = savedAtUtc;
             submission.WorkerExecutionLatencyMs = Math.Max(0L, (long)(savedAtUtc - workerStartedAtUtc).TotalMilliseconds);
             submission.EndToEndLatencyMs = Math.Max(0L, (long)(savedAtUtc - msg.RequestStartedAtUtc).TotalMilliseconds);
+
+            VotingMetrics.VoteAcceptanceLatencySeconds.Record(
+                Math.Max(0, (savedAtUtc - msg.RequestStartedAtUtc).TotalSeconds),
+                new TagList { { "architecture", "async" }, { "worker_id", _instanceId } });
 
             await context.Publish(
                 new VoteRecordedEvent(

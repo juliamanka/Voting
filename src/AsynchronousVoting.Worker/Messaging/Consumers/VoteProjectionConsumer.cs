@@ -26,6 +26,7 @@ public class VoteProjectionConsumer : IConsumer<VoteRecordedEvent>
 
     public async Task Consume(ConsumeContext<VoteRecordedEvent> context)
     {
+        var stage2WorkerStartedAtUtc = DateTime.UtcNow;
         var msg = context.Message;
         _logger.LogInformation("Received VoteRecordedEvent: VoteId={VoteId}", msg.VoteId);
 
@@ -46,11 +47,6 @@ public class VoteProjectionConsumer : IConsumer<VoteRecordedEvent>
 
         var completedAtUtc = DateTime.UtcNow;
 
-        // Stage1WorkerStartedAtUtc carries the time Stage 1 started consuming CastVoteCommand.
-        // Using it here gives worker_execution = full worker work (save + inter-stage queue + projection).
-        var workerStartedAtUtc = msg.Stage1WorkerStartedAtUtc ?? msg.PublishedAtUtc;
-        var brokerSentAtUtc = msg.BrokerSentAtUtc;
-
         var tags = new TagList
         {
             { "architecture", "async" },
@@ -58,17 +54,19 @@ public class VoteProjectionConsumer : IConsumer<VoteRecordedEvent>
             { "status", VoteStatus.Counted.ToString() }
         };
 
+        // Comparable with hybrid: requestStart → projection done (total pipeline latency).
         VotingMetrics.VoteProcessingDurationSeconds.Record(
             Math.Max(0, (completedAtUtc - msg.RequestStartedAtUtc).TotalSeconds), tags);
 
-        if (brokerSentAtUtc.HasValue)
-        {
-            VotingMetrics.VoteQueueDelaySeconds.Record(
-                Math.Max(0, (workerStartedAtUtc - brokerSentAtUtc.Value).TotalSeconds), tags);
-        }
+        // Comparable with hybrid: publishedAt → stage2 consume start
+        // = time VoteRecordedEvent waited in async-vote-recorded-events queue.
+        // Hybrid measures the same span (publishedAt → workerStart) for its projection queue.
+        VotingMetrics.VoteQueueDelaySeconds.Record(
+            Math.Max(0, (stage2WorkerStartedAtUtc - msg.PublishedAtUtc).TotalSeconds), tags);
 
+        // Comparable with hybrid: stage2 consume start → projection done = projection execution only.
         VotingMetrics.VoteWorkerExecutionDurationSeconds.Record(
-            Math.Max(0, (completedAtUtc - workerStartedAtUtc).TotalSeconds), tags);
+            Math.Max(0, (completedAtUtc - stage2WorkerStartedAtUtc).TotalSeconds), tags);
 
         VotingMetrics.VotesProcessed.Add(1, tags);
 

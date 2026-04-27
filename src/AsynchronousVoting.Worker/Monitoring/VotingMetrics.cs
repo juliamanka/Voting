@@ -29,4 +29,10 @@ public static class VotingMetrics
             "votes_processed_total",
             unit: "votes",
             description: "Total number of votes processed by async worker");
+
+    public static readonly Histogram<double> VoteAcceptanceLatencySeconds =
+        Meter.CreateHistogram<double>(
+            name: "vote_acceptance_latency_seconds",
+            unit: "s",
+            description: "Time from HTTP request start to vote being saved (Stage 1 completion). Async-specific metric showing the fast-path decoupled from projection.");
 }
