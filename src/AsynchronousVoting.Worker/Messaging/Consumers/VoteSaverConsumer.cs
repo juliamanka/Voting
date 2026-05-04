@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using AsynchronousVoting.Worker.Monitoring;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;

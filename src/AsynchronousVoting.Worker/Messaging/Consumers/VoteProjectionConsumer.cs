@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using AsynchronousVoting.Worker.Monitoring;
 using MassTransit;
@@ -46,7 +47,7 @@ public class VoteProjectionConsumer : IConsumer<VoteRecordedEvent>
             context.CancellationToken);
 
         var completedAtUtc = DateTime.UtcNow;
-
+        
         var tags = new TagList
         {
             { "architecture", "async" },

@@ -19,7 +19,6 @@ public static class DependencyInjection
         services.AddScoped<IVoteProjectionAndAuditService, VoteProjectionAndAuditService>();
         services.AddScoped<IPollService, PollService>();
         services.AddScoped<IPollResultsReader, ProjectionPollResultsReader>();
-        services.AddScoped<IVoteInputValidationService, VoteInputValidationService>();
         services.AddScoped<IVoteValidationService, VoteValidationService>();
         services.AddScoped<IEligibilityService, EligibilityService>();
 
