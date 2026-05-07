@@ -1,7 +1,10 @@
+using Microsoft.Extensions.Options;
 using Voting.Application.DTOs;
 using Voting.Application.Interfaces;
+using Voting.Application.Options;
 using Voting.Domain.Entities;
 using Voting.Domain.Repository;
+using PollResultOption = Voting.Application.DTOs.Options;
 
 namespace Voting.Application.Services;
 
@@ -9,13 +12,16 @@ public class VoteProjectionAndAuditService : IVoteProjectionAndAuditService
 {
     private readonly IPollRepository _pollRepository;
     private readonly IPollResultsProjectionRepository _projectionRepository;
+    private readonly ProjectionOptions _projectionOptions;
 
     public VoteProjectionAndAuditService(
         IPollRepository pollRepository,
-        IPollResultsProjectionRepository projectionRepository)
+        IPollResultsProjectionRepository projectionRepository,
+        IOptions<ProjectionOptions> projectionOptions)
     {
         _pollRepository = pollRepository;
         _projectionRepository = projectionRepository;
+        _projectionOptions = projectionOptions.Value;
     }
 
     public async Task<PollResults> ApplyVoteAcceptedAsync(
@@ -23,10 +29,9 @@ public class VoteProjectionAndAuditService : IVoteProjectionAndAuditService
         string architecture,
         CancellationToken cancellationToken)
     {
-        var projectionDelayMs = ReadProjectionDelayMs();
-        if (projectionDelayMs > 0)
+        if (_projectionOptions.DelayMs > 0)
         {
-            await Task.Delay(projectionDelayMs, cancellationToken);
+            await Task.Delay(_projectionOptions.DelayMs, cancellationToken);
         }
 
         var poll = await _pollRepository.GetByIdAsync(vote.PollId, cancellationToken)
@@ -57,7 +62,7 @@ public class VoteProjectionAndAuditService : IVoteProjectionAndAuditService
             LastUpdatedAtUtc = projection.LastUpdatedAtUtc,
             Options = projection.Options
                 .OrderBy(o => o.OrderIndex)
-                .Select(o => new Options
+                .Select(o => new PollResultOption
                 {
                     OptionId = o.PollOptionId,
                     OptionText = o.OptionText,
@@ -67,10 +72,4 @@ public class VoteProjectionAndAuditService : IVoteProjectionAndAuditService
         };
     }
 
-    private static int ReadProjectionDelayMs()
-    {
-        var raw = Environment.GetEnvironmentVariable("Chaos__ProjectionDelayMs")
-                  ?? Environment.GetEnvironmentVariable("CHAOS_PROJECTION_DELAY_MS");
-        return int.TryParse(raw, out var delayMs) && delayMs > 0 ? delayMs : 0;
-    }
 }

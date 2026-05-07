@@ -16,6 +16,7 @@ using Voting.Application.Interfaces;
 using Voting.Infrastructure;
 using System.Threading.RateLimiting;
 using Voting.Application.DTOs;
+using Voting.Application.Options;
 using Voting.Infrastructure.Database;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -65,6 +66,11 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 builder.Services.AddApplicationServices();
+builder.Services.Configure<ProjectionOptions>(options =>
+{
+    options.DelayMs = builder.Configuration.GetValue<int?>("Chaos:ProjectionDelayMs")
+                      ?? ReadPositiveIntEnvironmentVariable("CHAOS_PROJECTION_DELAY_MS");
+});
 builder.Services.AddInfrastructureServices(builder.Configuration);
 builder.Services.AddHttpContextAccessor();
 
@@ -91,17 +97,41 @@ otel.WithMetrics(metrics =>
             }
         })
         .AddMeter("AsynchronousVoting.Api.Metrics")
-        .AddView("vote_http_response_latency_seconds", new ExplicitBucketHistogramConfiguration
-        {
-            Boundaries = new[]
+            .AddView("vote_http_response_latency_seconds", new ExplicitBucketHistogramConfiguration
             {
-                0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5,
-                1, 2, 5, 10, 20, 30, 45, 60, 90, 120, 180, 240, 300
-            }
-        })
-        .AddView("ux_vote_latency_seconds", new ExplicitBucketHistogramConfiguration
-        {
-            Boundaries = new[]
+                Boundaries = new[]
+                {
+                    0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5,
+                    1, 2, 5, 10, 20, 30, 45, 60, 90, 120, 180, 240, 300
+                }
+            })
+            .AddView("results_notification_completion_duration_seconds", new ExplicitBucketHistogramConfiguration
+            {
+                Boundaries = new[]
+                {
+                    0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5,
+                    1, 2, 5, 10, 20, 30, 45, 60, 90, 120, 180, 240, 300
+                }
+            })
+            .AddView("poll_results_updated_event_queue_delay_seconds", new ExplicitBucketHistogramConfiguration
+            {
+                Boundaries = new[]
+                {
+                    0.001, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5,
+                    1, 2, 5, 10, 20, 30, 45, 60, 90, 120, 180, 240, 300
+                }
+            })
+            .AddView("signalr_send_duration_seconds", new ExplicitBucketHistogramConfiguration
+            {
+                Boundaries = new[]
+                {
+                    0.001, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5,
+                    1, 2, 5, 10, 20, 30
+                }
+            })
+            .AddView("ux_vote_latency_seconds", new ExplicitBucketHistogramConfiguration
+            {
+                Boundaries = new[]
             {
                 0.01, 0.02, 0.05, 0.1, 0.2, 0.5,
                 1, 2, 5, 10, 15, 20, 30, 45, 60, 90, 120
@@ -133,7 +163,6 @@ var rabbitHost = rabbitSection["Host"] ?? throw new InvalidOperationException("R
 var rabbitUser = rabbitSection["Username"] ?? throw new InvalidOperationException("RabbitMq:Username is missing");
 var rabbitPass = rabbitSection["Password"] ?? throw new InvalidOperationException("RabbitMq:Password is missing");
 
-// MassTransit
 builder.Services.AddMassTransit(x =>
 {
     x.AddConsumer<PollResultsUpdatedEventConsumer>();
@@ -210,3 +239,9 @@ app.MapControllers();
 app.MapHub<ResultsHub>("/hubs/results");
 
 app.Run();
+
+static int ReadPositiveIntEnvironmentVariable(string name)
+{
+    var raw = Environment.GetEnvironmentVariable(name);
+    return int.TryParse(raw, out var value) && value > 0 ? value : 0;
+}

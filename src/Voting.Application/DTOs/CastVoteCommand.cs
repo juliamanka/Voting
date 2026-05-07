@@ -2,7 +2,6 @@ namespace Voting.Application.DTOs;
 
 public record CastVoteCommand
 {
-    // Konstruktor bezparametrowy dla MassTransit/Serializatora
     public CastVoteCommand()
     {
     }

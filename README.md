@@ -107,7 +107,6 @@ Main services:
 - `VoteProjectionAndAuditService` - applies projection updates and writes audit logs.
 - `PollService` - reads polls and results.
 - `ProjectionPollResultsReader` - reads result projections.
-- `AuthoritativeVoteResultsReader` - can read results directly from recorded votes.
 
 The default registration currently maps `IPollResultsReader` to `ProjectionPollResultsReader`, so result endpoints use the projection read model.
 
@@ -561,15 +560,17 @@ The result CSV produced by `automate_tests.py` contains these major metric group
 | --- | --- |
 | Run metadata | `Timestamp`, `Architecture`, `Scenario`, `Target_RPS`, `RPS_Drift_Percent` |
 | NBomber output | `RPS_Actual`, `NBomber_Mean`, `NBomber_p50`, `NBomber_p95`, `Fail_Rate_Percent` |
-| Backend processing | `Backend_Mean`, `Grafana_p50_Processing`, `Grafana_p95_Processing`, `Grafana_p99_Processing` |
+| Durable vote write | `DurableWrite_Mean`, `DurableWrite_p50`, `DurableWrite_p95`, `DurableWrite_p99` |
+| Projection completion | `ProjectionCompletion_Mean`, `ProjectionCompletion_p50`, `ProjectionCompletion_p95`, `ProjectionCompletion_p99` |
+| Realtime notification | `ResultsNotificationCompletion_p50`, `ResultsNotificationCompletion_p95`, `ResultsNotificationCompletion_p99`, `SignalRSend_p50`, `SignalRSend_p95` |
 | HTTP POST latency | `Grafana_p50_Latency_POST`, `Grafana_p95_Latency_POST`, `Grafana_p99_Latency_POST` |
-| Queue/worker latency | `QueueDelay_p50`, `QueueDelay_p95`, `WorkerExecution_p50`, `WorkerExecution_p95` |
+| Queue latency | `VoteSubmissionQueueDelay_p50`, `VoteSubmissionQueueDelay_p95`, `VoteRecordedEventQueueDelay_p50`, `VoteRecordedEventQueueDelay_p95`, `PollResultsUpdatedEventQueueDelay_p50`, `PollResultsUpdatedEventQueueDelay_p95` |
 | Resource pressure | `Rabbit_QueueDepth_Max`, `Worker_CPU_Max`, `Worker_RAM_Max`, `DB_CPU_Max`, `DB_RAM_Max` |
 | HTTP resilience | `HTTP_429_Percent`, `Timeout_Percent` |
 | Frontend UX metrics | `UX_Mean`, `UX_p99`, `UX_p95`, `UX_p50`, `UX_Samples`, `E2E_*`, `TVF_*`, `DCL_*` |
-| Quality flags and artifacts | `Processing_p95_Capped`, `UX_p95_Capped`, `Resource_Series_File`, `UX_Probe_File`, `NBomber_Report` |
+| Quality flags and artifacts | `ProjectionCompletion_p95_Capped`, `UX_p95_Capped`, `Resource_Series_File`, `UX_Probe_File`, `NBomber_Report` |
 
-Prometheus queries use the scenario duration as their lookback window. The script treats backend mean, backend p95, and POST p95 as required metrics; missing required values fail the collection step unless `--continue-on-error` is supplied.
+Prometheus queries use the scenario duration as their lookback window. The script treats durable-write mean/p95, projection-completion mean/p95, result-notification p95, and POST p95 as required metrics; missing required values fail the collection step unless `--continue-on-error` is supplied.
 
 ### Grafana Export
 

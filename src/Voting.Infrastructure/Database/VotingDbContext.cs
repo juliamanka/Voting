@@ -84,11 +84,10 @@ public class VotingDbContext : DbContext
             entity.HasKey(po => po.PollOptionId);
             entity.Property(po => po.Text).IsRequired().HasMaxLength(200);
 
-            // Relacja: Jedna Ankieta -> Wiele Opcji
             entity.HasOne(po => po.Poll)
                 .WithMany(p => p.Options)
                 .HasForeignKey(po => po.PollId)
-                .OnDelete(DeleteBehavior.Cascade); // Jak usuwasz ankietę, usuń też jej opcje
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<VoterEligibility>(entity =>

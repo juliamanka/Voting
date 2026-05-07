@@ -7,7 +7,7 @@ using Voting.Infrastructure.Repositories;
 
 namespace Voting.Infrastructure;
 
-public static class DepedencyInjection
+public static class DependencyInjection
 {
     public static IServiceCollection AddInfrastructureServices(this IServiceCollection services, IConfiguration configuration)
     {

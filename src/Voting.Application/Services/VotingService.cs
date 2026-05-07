@@ -29,11 +29,13 @@ public class VotingService : IVotingService
         _voteProjectionAndAuditService = voteProjectionAndAuditService;
     }
 
-    public async Task<VoteResponse> ProcessVoteAsync(VoteRequest voteRequest, CancellationToken cancellationToken)
+    public async Task<VoteProcessingResult> ProcessVoteAsync(VoteRequest voteRequest, CancellationToken cancellationToken)
     {
         var stopwatch = Stopwatch.StartNew();
         var savedRecord = await _voteWriteService.WriteVoteAsync(voteRequest, cancellationToken);
+        var voteCommittedAtUtc = DateTime.UtcNow;
         await _voteProjectionAndAuditService.ApplyVoteAcceptedAsync(savedRecord, "sync", cancellationToken);
+        var projectionCompletedAtUtc = DateTime.UtcNow;
 
         stopwatch.Stop();
 
@@ -42,11 +44,11 @@ public class VotingService : IVotingService
         receipt.ServerProcessingTimeMs = stopwatch.ElapsedMilliseconds;
 
         _logger.LogInformation(
-            "Vote successfuly saved: {VoteId} for poll {PollId} in {ProcessingTime}ms",
+            "Vote successfully saved: {VoteId} for poll {PollId} in {ProcessingTime}ms",
             receipt.VoteId,
             receipt.PollId,
             receipt.ServerProcessingTimeMs);
 
-        return receipt;
+        return new VoteProcessingResult(receipt, voteCommittedAtUtc, projectionCompletedAtUtc);
     }
 }

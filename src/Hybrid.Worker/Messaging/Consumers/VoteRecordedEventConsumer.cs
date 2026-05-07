@@ -43,17 +43,16 @@ public class VoteRecordedEventConsumer : IConsumer<VoteRecordedEvent>
             { "status", "Counted" }
         };
 
-        VotingMetrics.VoteProcessingDurationSeconds.Record(
+        VotingMetrics.VoteProjectionCompletionDurationSeconds.Record(
             Math.Max(0, (completedAtUtc - context.Message.RequestStartedAtUtc).TotalSeconds),
             tags);
-        VotingMetrics.VoteQueueDelaySeconds.Record(
+        VotingMetrics.VoteRecordedEventQueueDelaySeconds.Record(
             Math.Max(0, (workerStartedAtUtc - context.Message.PublishedAtUtc).TotalSeconds),
-            tags);
-        VotingMetrics.VoteWorkerExecutionDurationSeconds.Record(
-            Math.Max(0, (completedAtUtc - workerStartedAtUtc).TotalSeconds),
             tags);
         VotingMetrics.VotesProcessed.Add(1, tags);
 
-        await context.Publish(new PollResultsUpdatedEvent(projection));
+        await context.Publish(
+            new PollResultsUpdatedEvent(projection, context.Message.RequestStartedAtUtc, DateTime.UtcNow),
+            context.CancellationToken);
     }
 }

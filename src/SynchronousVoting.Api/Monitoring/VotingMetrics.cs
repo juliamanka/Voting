@@ -12,9 +12,27 @@ public static class VotingMetrics
             unit: "s",
             description: "HTTP response latency for POST /api/vote in synchronous API");
 
-    public static readonly Histogram<double> VoteProcessingDurationSeconds =
+    public static readonly Histogram<double> VoteDurableWriteDurationSeconds =
         Meter.CreateHistogram<double>(
-            name: "vote_processing_duration_seconds",
+            name: "vote_durable_write_duration_seconds",
             unit: "s",
-            description: "End-to-end processing time of a vote in synchronous API");
+            description: "Time from HTTP request start to the vote being permanently recorded");
+
+    public static readonly Histogram<double> VoteProjectionCompletionDurationSeconds =
+        Meter.CreateHistogram<double>(
+            name: "vote_projection_completion_duration_seconds",
+            unit: "s",
+            description: "Time from HTTP request start to projection completion");
+
+    public static readonly Histogram<double> ResultsNotificationCompletionDurationSeconds =
+        Meter.CreateHistogram<double>(
+            name: "results_notification_completion_duration_seconds",
+            unit: "s",
+            description: "Time from HTTP request start to SignalR result notification send completion");
+
+    public static readonly Histogram<double> SignalRSendDurationSeconds =
+        Meter.CreateHistogram<double>(
+            name: "signalr_send_duration_seconds",
+            unit: "s",
+            description: "Time spent sending the poll result notification through SignalR");
 }

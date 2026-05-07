@@ -10,6 +10,7 @@ using Serilog;
 using Voting.Api.Common;
 using Voting.Api.Common.RequestTiming;
 using Voting.Application;
+using Voting.Application.Options;
 using Voting.Infrastructure;
 using Voting.Infrastructure.Database;
 using SynchronousVoting.Api.Hubs;
@@ -65,6 +66,11 @@ try
     });
 
     builder.Services.AddApplicationServices();
+    builder.Services.Configure<ProjectionOptions>(options =>
+    {
+        options.DelayMs = builder.Configuration.GetValue<int?>("Chaos:ProjectionDelayMs")
+                          ?? ReadPositiveIntEnvironmentVariable("CHAOS_PROJECTION_DELAY_MS");
+    });
     builder.Services.AddInfrastructureServices(builder.Configuration);
     builder.Services.AddHttpContextAccessor();
     builder.Services.AddSignalR();
@@ -99,12 +105,36 @@ try
                 }
             })
             .AddMeter("SynchronousVoting.Api.Metrics")
-            .AddView("vote_processing_duration_seconds", new ExplicitBucketHistogramConfiguration
+            .AddView("vote_durable_write_duration_seconds", new ExplicitBucketHistogramConfiguration
             {
                 Boundaries = new[]
                 {
                     0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5,
                     1, 2, 5, 10, 20, 30, 45, 60, 90, 120, 180, 240, 300
+                }
+            })
+            .AddView("vote_projection_completion_duration_seconds", new ExplicitBucketHistogramConfiguration
+            {
+                Boundaries = new[]
+                {
+                    0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5,
+                    1, 2, 5, 10, 20, 30, 45, 60, 90, 120, 180, 240, 300
+                }
+            })
+            .AddView("results_notification_completion_duration_seconds", new ExplicitBucketHistogramConfiguration
+            {
+                Boundaries = new[]
+                {
+                    0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5,
+                    1, 2, 5, 10, 20, 30, 45, 60, 90, 120, 180, 240, 300
+                }
+            })
+            .AddView("signalr_send_duration_seconds", new ExplicitBucketHistogramConfiguration
+            {
+                Boundaries = new[]
+                {
+                    0.001, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5,
+                    1, 2, 5, 10, 20, 30
                 }
             })
             .AddView("vote_http_response_latency_seconds", new ExplicitBucketHistogramConfiguration
@@ -187,4 +217,10 @@ catch (Exception ex)
 finally
 {
     Log.CloseAndFlush();
+}
+
+static int ReadPositiveIntEnvironmentVariable(string name)
+{
+    var raw = Environment.GetEnvironmentVariable(name);
+    return int.TryParse(raw, out var value) && value > 0 ? value : 0;
 }

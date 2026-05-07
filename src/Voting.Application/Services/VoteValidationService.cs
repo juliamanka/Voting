@@ -48,7 +48,7 @@ public class VoteValidationService : IVoteValidationService
         var optionExists = poll.Options.Any(o => o.PollOptionId == voteRequest.PollOptionId);
         if (!optionExists)
         {
-            throw new ValidationException("Chosen answer doesn't exist in the poll.");
+            throw new ValidationException("Chosen answer does not exist in the poll.");
         }
 
         if (!string.IsNullOrWhiteSpace(voteRequest.UserId) &&

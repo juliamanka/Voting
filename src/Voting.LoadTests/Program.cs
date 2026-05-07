@@ -6,9 +6,6 @@ using NBomber.Contracts;
 using NBomber.Contracts.Stats;
 using NBomber.CSharp;
 
-// --------------------------------------------------
-//  MODELE – dopasowane do Twojego API
-// --------------------------------------------------
 
 public class PollOptionDto
 {
@@ -43,10 +40,6 @@ public class VoteRequestDto
     public string? UserId { get; set; }
 }
 
-// --------------------------------------------------
-//  Program z Main
-// --------------------------------------------------
-
 public class Program
 {
     private const string StepName = "vote_step";
@@ -54,14 +47,7 @@ public class Program
 
     private sealed record PollCacheEntry(Guid PollId, Guid[] OptionIds);
 
-    public static void Main(string[] args)
-    {
-        // 1. Czy mamy listę wielu URL-i? (dla skalowania horyzontalnego)
-        //    Priorytet:
-        //    1) env: VOTING_API_BASE_URLS = "http://localhost:5101,http://localhost:5102,..."
-        //    2) env: VOTING_API_BASE_URL = "http://localhost:5001"
-        //    3) args[0]
-        //    4) domyślnie: "http://localhost:5001"
+    public static void Main(string[] args){
         var baseUrlsEnv = Environment.GetEnvironmentVariable("VOTING_API_BASE_URLS");
 
         string[] baseUrls;
@@ -97,28 +83,26 @@ public class Program
         Console.WriteLine($"[NBomber] architecture = {architecture}");
         Console.WriteLine($"[NBomber] load profile = {loadProfile}");
 
+        var reportFolder = Environment.GetEnvironmentVariable("NBOMBER_REPORTS_DIR")
+                           ?? Path.GetFullPath("nbomber-reports");
+        Console.WriteLine($"[NBomber] report folder = {reportFolder}");
+
         var jsonOptions = new JsonSerializerOptions
         {
             PropertyNameCaseInsensitive = true
         };
-
-        // Jeden HttpClient na cały test (bez BaseAddress, bo używamy pełnych URL-i).
-        // UseCookies=false omija problem inicjalizacji CookieContainer na części środowisk macOS.
         var httpClient = new HttpClient(new HttpClientHandler { UseCookies = false });
 
-        // 2. Scenariusz NBomber 6.x
         var scenario = Scenario.Create(
                 name: $"{architecture}_vote_scenario",
                 async context =>
                 {
                     try
                     {
-                        // wybór instancji API – prosty random (równomierne rozłożenie ruchu)
                         var apiBase = baseUrls.Length == 1
                             ? baseUrls[0]
                             : baseUrls[Random.Shared.Next(baseUrls.Length)];
 
-                        // Głosujemy na już-pobranej ankiecie, żeby mierzyć sam path /api/vote
                         var poll = await GetOrLoadPollAsync(httpClient, apiBase, jsonOptions, context.ScenarioCancellationToken);
                         var optionId = poll.OptionIds[Random.Shared.Next(poll.OptionIds.Length)];
 
@@ -162,13 +146,12 @@ public class Program
             .WithWarmUpDuration(TimeSpan.FromSeconds(10))
                .WithLoadSimulations(BuildLoadSimulations(loadProfile));
 
-        // 3. Uruchomienie
         NBomberRunner
             .RegisterScenarios(scenario)
             .WithTestSuite("Voting")
             .WithTestName($"NBomber_{architecture}_RPS")
             .WithReportFileName($"NBomber_{architecture}_RPS")
-            .WithReportFolder("nbomber-reports")
+            .WithReportFolder(reportFolder)
             .WithReportFormats(ReportFormat.Html, ReportFormat.Csv)
             .Run();
     }
@@ -223,15 +206,46 @@ public class Program
             };
         }
 
-        var rawRates = Environment.GetEnvironmentVariable("STAIR_RATES") ?? "5,10,50,100";
-        var stepMinutes = ReadInt("STAIR_STEP_MINUTES", 2);
+        if (string.Equals(loadProfile, "staircase", StringComparison.OrdinalIgnoreCase))
+        {
+            return BuildStepProfile(
+                profileName: "staircase",
+                ratesEnvName: "STAIR_RATES",
+                ratesFallback: "5,10,50,100",
+                stepMinutesEnvName: "STAIR_STEP_MINUTES",
+                stepMinutesFallback: 2);
+        }
+
+        if (string.Equals(loadProfile, "burst", StringComparison.OrdinalIgnoreCase))
+        {
+            return BuildStepProfile(
+                profileName: "burst",
+                ratesEnvName: "BURST_RATES",
+                ratesFallback: "10,150,10",
+                stepMinutesEnvName: "BURST_STEP_MINUTES",
+                stepMinutesFallback: 1);
+        }
+
+        throw new InvalidOperationException(
+            $"Unsupported LOAD_PROFILE '{loadProfile}'. Expected one of: steady, staircase, burst.");
+    }
+
+    private static LoadSimulation[] BuildStepProfile(
+        string profileName,
+        string ratesEnvName,
+        string ratesFallback,
+        string stepMinutesEnvName,
+        int stepMinutesFallback)
+    {
+        var rawRates = Environment.GetEnvironmentVariable(ratesEnvName) ?? ratesFallback;
+        var stepMinutes = ReadInt(stepMinutesEnvName, stepMinutesFallback);
         var rates = rawRates
             .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Select(int.Parse)
             .ToArray();
 
         Console.WriteLine(
-            $"[NBomber] staircase profile: rates=[{string.Join(", ", rates)}], step={stepMinutes} min");
+            $"[NBomber] {profileName} profile: rates=[{string.Join(", ", rates)}], step={stepMinutes} min");
 
         return rates.Select(rate =>
                 Simulation.Inject(

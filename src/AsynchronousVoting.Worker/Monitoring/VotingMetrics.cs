@@ -6,33 +6,33 @@ public static class VotingMetrics
 {
     private static readonly Meter Meter = new("AsynchronousVoting.Worker.Metrics", "1.0.0");
     
-    public static readonly Histogram<double> VoteProcessingDurationSeconds =
+    public static readonly Histogram<double> VoteRecordedEventQueueDelaySeconds =
         Meter.CreateHistogram<double>(
-            name: "vote_processing_duration_seconds",
+            name: "vote_recorded_event_queue_delay_seconds",
             unit: "s",
-            description: "End-to-end processing time of a vote in async worker (enqueue -> DB)");
+            description: "Time from VoteRecordedEvent publish to projection worker consume start");
 
-    public static readonly Histogram<double> VoteQueueDelaySeconds =
+    public static readonly Histogram<double> VoteDurableWriteDurationSeconds =
         Meter.CreateHistogram<double>(
-            name: "vote_queue_delay_seconds",
+            name: "vote_durable_write_duration_seconds",
             unit: "s",
-            description: "Time from broker send to worker consume start");
+            description: "Time from original request start to the vote being permanently recorded");
 
-    public static readonly Histogram<double> VoteWorkerExecutionDurationSeconds =
+    public static readonly Histogram<double> VoteProjectionCompletionDurationSeconds =
         Meter.CreateHistogram<double>(
-            name: "vote_worker_execution_duration_seconds",
+            name: "vote_projection_completion_duration_seconds",
             unit: "s",
-            description: "Time from worker consume start to persisted completion");
-    
+            description: "Time from original request start to projection completion");
+
+    public static readonly Histogram<double> VoteSubmissionQueueDelaySeconds =
+        Meter.CreateHistogram<double>(
+            name: "vote_submission_queue_delay_seconds",
+            unit: "s",
+            description: "Time from async vote submission publish to stage 1 worker consume start");
+
     public static readonly Counter<long> VotesProcessed =
         Meter.CreateCounter<long>(
             "votes_processed_total",
             unit: "votes",
             description: "Total number of votes processed by async worker");
-
-    public static readonly Histogram<double> VoteAcceptanceLatencySeconds =
-        Meter.CreateHistogram<double>(
-            name: "vote_acceptance_latency_seconds",
-            unit: "s",
-            description: "Time from HTTP request start to vote being saved (Stage 1 completion). Async-specific metric showing the fast-path decoupled from projection.");
 }

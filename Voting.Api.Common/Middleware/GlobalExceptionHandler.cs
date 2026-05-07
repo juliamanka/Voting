@@ -53,11 +53,11 @@ public sealed class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logge
                 validationProblemDetails.Extensions["traceId"] = traceId;
                 return validationProblemDetails;
 
-             case NotFoundException notFoundException:
-                status = StatusCodes.Status404NotFound; 
-                title = "Nie znaleziono zasobu";
-                 detail = notFoundException.Message;
-                 break;
+            case NotFoundException notFoundException:
+                status = StatusCodes.Status404NotFound;
+                title = "Resource not found";
+                detail = notFoundException.Message;
+                break;
              
             case PollInactiveException pollInactiveException:
                 status = StatusCodes.Status400BadRequest;

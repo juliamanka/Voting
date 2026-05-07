@@ -16,7 +16,6 @@ public class VoteProfile : Profile
         
         CreateMap<Poll, PollDto>();
 
-        // Mapowanie Opcji
         CreateMap<PollOption, PollOptionDto>();
     }
 }

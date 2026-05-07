@@ -1,6 +1,7 @@
 using System.Reflection;
 using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
+using Voting.Application.Options;
 using Voting.Application.Interfaces;
 using Voting.Application.Services;
 
@@ -13,6 +14,7 @@ public static class DependencyInjection
         services.AddAutoMapper(Assembly.GetExecutingAssembly());
 
         services.AddValidatorsFromAssembly(Assembly.GetExecutingAssembly());
+        services.AddOptions<ProjectionOptions>();
 
         services.AddScoped<IVotingService, VotingService>();
         services.AddScoped<IVoteWriteService, VoteWriteService>();

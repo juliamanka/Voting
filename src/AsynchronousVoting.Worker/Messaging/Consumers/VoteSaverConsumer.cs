@@ -85,9 +85,18 @@ public class VoteSaverConsumer : IConsumer<CastVoteCommand>
             submission.WorkerExecutionLatencyMs = Math.Max(0L, (long)(savedAtUtc - workerStartedAtUtc).TotalMilliseconds);
             submission.EndToEndLatencyMs = Math.Max(0L, (long)(savedAtUtc - msg.RequestStartedAtUtc).TotalMilliseconds);
 
-            VotingMetrics.VoteAcceptanceLatencySeconds.Record(
+            var tags = new TagList
+            {
+                { "architecture", "async" },
+                { "worker_id", _instanceId }
+            };
+
+            VotingMetrics.VoteDurableWriteDurationSeconds.Record(
                 Math.Max(0, (savedAtUtc - msg.RequestStartedAtUtc).TotalSeconds),
-                new TagList { { "architecture", "async" }, { "worker_id", _instanceId } });
+                tags);
+            VotingMetrics.VoteSubmissionQueueDelaySeconds.Record(
+                Math.Max(0, (workerStartedAtUtc - brokerSentAtUtc).TotalSeconds),
+                tags);
 
             await context.Publish(
                 new VoteRecordedEvent(

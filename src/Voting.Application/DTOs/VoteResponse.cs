@@ -8,7 +8,6 @@ public class VoteResponse
     public Guid PollId { get; set; }
     public VoteStatus Status { get; set; }
     public DateTime Timestamp { get; set; }
-    
-    // Metric used for analytics and performance monitoring
+
     public long ServerProcessingTimeMs { get; set; }
 }

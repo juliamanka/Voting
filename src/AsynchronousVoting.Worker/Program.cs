@@ -83,7 +83,7 @@ builder.Services.AddOpenTelemetry()
     .ConfigureResource(resource => resource.AddService(serviceName))
     .WithMetrics(metrics => metrics
         .AddMeter("AsynchronousVoting.Worker.Metrics")
-        .AddView("vote_processing_duration_seconds", new ExplicitBucketHistogramConfiguration
+        .AddView("vote_durable_write_duration_seconds", new ExplicitBucketHistogramConfiguration
         {
             Boundaries = new[]
             {
@@ -91,7 +91,15 @@ builder.Services.AddOpenTelemetry()
                 1, 2, 5, 10, 20, 30, 45, 60, 90, 120, 180, 240, 300
             }
         })
-        .AddView("vote_queue_delay_seconds", new ExplicitBucketHistogramConfiguration
+        .AddView("vote_projection_completion_duration_seconds", new ExplicitBucketHistogramConfiguration
+        {
+            Boundaries = new[]
+            {
+                0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5,
+                1, 2, 5, 10, 20, 30, 45, 60, 90, 120, 180, 240, 300
+            }
+        })
+        .AddView("vote_recorded_event_queue_delay_seconds", new ExplicitBucketHistogramConfiguration
         {
             Boundaries = new[]
             {
@@ -99,20 +107,12 @@ builder.Services.AddOpenTelemetry()
                 1, 2, 5, 10, 20, 30, 45, 60, 90, 120, 180, 240, 300
             }
         })
-        .AddView("vote_worker_execution_duration_seconds", new ExplicitBucketHistogramConfiguration
+        .AddView("vote_submission_queue_delay_seconds", new ExplicitBucketHistogramConfiguration
         {
             Boundaries = new[]
             {
                 0.001, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5,
                 1, 2, 5, 10, 20, 30, 45, 60, 90, 120, 180, 240, 300
-            }
-        })
-        .AddView("vote_acceptance_latency_seconds", new ExplicitBucketHistogramConfiguration
-        {
-            Boundaries = new[]
-            {
-                0.001, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5,
-                1, 2, 5, 10, 20, 30
             }
         })
         .AddRuntimeInstrumentation()

@@ -4,5 +4,5 @@ namespace Voting.Application.Interfaces;
 
 public interface IVotingService
 {
-    Task<VoteResponse> ProcessVoteAsync(VoteRequest voteRequest, CancellationToken cancellationToken);
+    Task<VoteProcessingResult> ProcessVoteAsync(VoteRequest voteRequest, CancellationToken cancellationToken);
 }

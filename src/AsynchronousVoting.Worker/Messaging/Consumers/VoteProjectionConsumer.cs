@@ -55,22 +55,19 @@ public class VoteProjectionConsumer : IConsumer<VoteRecordedEvent>
             { "status", VoteStatus.Counted.ToString() }
         };
 
-        // Comparable with hybrid: requestStart → projection done (total pipeline latency).
-        VotingMetrics.VoteProcessingDurationSeconds.Record(
+        VotingMetrics.VoteProjectionCompletionDurationSeconds.Record(
             Math.Max(0, (completedAtUtc - msg.RequestStartedAtUtc).TotalSeconds), tags);
 
         // Comparable with hybrid: publishedAt → stage2 consume start
         // = time VoteRecordedEvent waited in async-vote-recorded-events queue.
         // Hybrid measures the same span (publishedAt → workerStart) for its projection queue.
-        VotingMetrics.VoteQueueDelaySeconds.Record(
+        VotingMetrics.VoteRecordedEventQueueDelaySeconds.Record(
             Math.Max(0, (stage2WorkerStartedAtUtc - msg.PublishedAtUtc).TotalSeconds), tags);
-
-        // Comparable with hybrid: stage2 consume start → projection done = projection execution only.
-        VotingMetrics.VoteWorkerExecutionDurationSeconds.Record(
-            Math.Max(0, (completedAtUtc - stage2WorkerStartedAtUtc).TotalSeconds), tags);
 
         VotingMetrics.VotesProcessed.Add(1, tags);
 
-        await context.Publish(new PollResultsUpdatedEvent(results), context.CancellationToken);
+        await context.Publish(
+            new PollResultsUpdatedEvent(results, msg.RequestStartedAtUtc, DateTime.UtcNow),
+            context.CancellationToken);
     }
 }

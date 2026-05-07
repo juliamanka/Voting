@@ -1,4 +1,3 @@
-using AsynchronousVoting.Api.Requests;
 using AsynchronousVoting.Api.Monitoring;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Mvc;
@@ -31,29 +30,23 @@ public class VotesController : ControllerBase
     }
 
     [HttpPost]
-    public async Task<IActionResult> CastVote([FromBody] CastVoteRequest request, CancellationToken ct)
+    [ProducesResponseType(typeof(VoteAcceptedResponse), StatusCodes.Status202Accepted)]
+    public async Task<IActionResult> CastVote([FromBody] VoteRequest request, CancellationToken ct)
     {
-        var voteRequest = new VoteRequest
-        {
-            PollId = request.PollId,
-            PollOptionId = request.PollOptionId,
-            UserId = request.UserId
-        };
-
-        await _voteValidationService.ValidateAsync(voteRequest, ct);
+        await _voteValidationService.ValidateAsync(request, ct);
 
         var submissionId = await _voteNotifier.NotifyVoteAsync(request.PollId, request.PollOptionId, request.UserId, ct);
 
         var responseLatency = RequestTimingContext.GetElapsedSinceRequestStart(HttpContext);
         VotingMetrics.VoteHttpResponseLatencySeconds.Record(responseLatency.TotalSeconds);
 
-        return Accepted(new
+        return Accepted(new VoteAcceptedResponse
         {
-            submissionId,
-            status = VoteStatus.Pending,
-            message = "Vote accepted for processing. Check the status endpoint for the final result.",
-            pollId = request.PollId,
-            pollOptionId = request.PollOptionId
+            SubmissionId = submissionId,
+            Status = VoteStatus.Pending,
+            Message = "Vote accepted for processing. Check the status endpoint for the final result.",
+            PollId = request.PollId,
+            PollOptionId = request.PollOptionId
         });
     }
 

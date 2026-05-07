@@ -6,27 +6,21 @@ public static class VotingMetrics
 {
     private static readonly Meter Meter = new("HybridVoting.Worker.Metrics", "1.0.0");
     
-    public static readonly Histogram<double> VoteProcessingDurationSeconds =
+    public static readonly Histogram<double> VoteRecordedEventQueueDelaySeconds =
         Meter.CreateHistogram<double>(
-            name: "vote_processing_duration_seconds",
+            name: "vote_recorded_event_queue_delay_seconds",
             unit: "s",
-            description: "End-to-end processing time of a vote in async worker (enqueue -> DB)");
+            description: "Time from VoteRecordedEvent publish to projection worker consume start");
 
-    public static readonly Histogram<double> VoteQueueDelaySeconds =
+    public static readonly Histogram<double> VoteProjectionCompletionDurationSeconds =
         Meter.CreateHistogram<double>(
-            name: "vote_queue_delay_seconds",
+            name: "vote_projection_completion_duration_seconds",
             unit: "s",
-            description: "Time from broker send to worker consume start");
-
-    public static readonly Histogram<double> VoteWorkerExecutionDurationSeconds =
-        Meter.CreateHistogram<double>(
-            name: "vote_worker_execution_duration_seconds",
-            unit: "s",
-            description: "Time from worker consume start to persisted completion");
+            description: "Time from original request start to projection completion");
     
     public static readonly Counter<long> VotesProcessed =
         Meter.CreateCounter<long>(
             "votes_processed_total",
             unit: "votes",
-            description: "Total number of votes processed by async worker");
+            description: "Total number of votes processed by hybrid projection worker");
 }
