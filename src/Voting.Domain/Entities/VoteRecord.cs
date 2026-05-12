@@ -14,17 +14,17 @@ public class VoteRecord
 
     [Required]
     public Guid PollOptionId { get; set; }
-    
+
     [MaxLength(256)]
     public string? UserId { get; set; }
 
     public VoteStatus Status { get; set; }
 
     public DateTime Timestamp { get; set; }
-    
-    [ForeignKey(nameof(PollId))] 
-    public virtual Poll Poll { get; set; }
-    
+
+    [ForeignKey(nameof(PollId))]
+    public virtual Poll Poll { get; set; } = null!;
+
     [ForeignKey(nameof(PollOptionId))]
-    public virtual PollOption PollOption { get; set; }
+    public virtual PollOption PollOption { get; set; } = null!;
 }

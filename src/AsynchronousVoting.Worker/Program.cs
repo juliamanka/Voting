@@ -5,6 +5,7 @@ using OpenTelemetry.Resources;
 using Voting.Application;
 using Voting.Application.DTOs;
 using Voting.Application.Messaging;
+using Voting.Application.Options;
 using Voting.Infrastructure;
 using Voting.Infrastructure.Database;
 
@@ -23,18 +24,23 @@ if (!string.IsNullOrWhiteSpace(configName))
 }
 
 var metricsPort = builder.Configuration.GetValue<int?>("Hosting:MetricsPort") ?? 9184;
-var workerConcurrency = builder.Configuration.GetValue<int?>("Worker:ConcurrentMessageLimit") ?? 8;
-var workerPrefetch = builder.Configuration.GetValue<ushort?>("Worker:PrefetchCount") ?? 16;
+var workerConcurrency = builder.Configuration.GetValue<int?>("Worker:ConcurrentMessageLimit") ?? 4;
+var workerPrefetch = builder.Configuration.GetValue<ushort?>("Worker:PrefetchCount") ?? 8;
 var projectionConcurrency = builder.Configuration.GetValue<int?>("Worker:ProjectionConcurrentMessageLimit") ?? workerConcurrency;
 var projectionPrefetch = builder.Configuration.GetValue<ushort?>("Worker:ProjectionPrefetchCount") ?? workerPrefetch;
 
 builder.Services.AddInfrastructureServices(builder.Configuration);
 builder.Services.AddApplicationServices();
+builder.Services.Configure<ProjectionOptions>(options =>
+{
+    options.DelayMs = builder.Configuration.GetValue<int?>("Chaos:ProjectionDelayMs")
+                      ?? ReadPositiveIntEnvironmentVariable("CHAOS_PROJECTION_DELAY_MS");
+});
 
 builder.Services.AddMassTransit(x =>
 {
-    x.AddConsumer<VoteSaverConsumer>();
-    x.AddConsumer<VoteProjectionConsumer>();
+    x.AddConsumer<CastVoteCommandConsumer>();
+    x.AddConsumer<VoteRecordedEventConsumer>();
     x.AddEntityFrameworkOutbox<VotingDbContext>(o =>
     {
         o.UseSqlServer();
@@ -50,7 +56,6 @@ builder.Services.AddMassTransit(x =>
         });
 
         cfg.Message<PollResultsUpdatedEvent>(m => m.SetEntityName("async-poll-results-updated-exchange"));
-        // Use a dedicated exchange so async VoteRecordedEvent messages do not reach the hybrid worker queue.
         cfg.Message<VoteRecordedEvent>(m => m.SetEntityName("async-vote-recorded-exchange"));
 
         cfg.ReceiveEndpoint(VoteQueueNames.AsyncCastVoteQueue, e =>
@@ -61,7 +66,7 @@ builder.Services.AddMassTransit(x =>
             e.ConcurrentMessageLimit = workerConcurrency;
             e.PrefetchCount = workerPrefetch;
 
-            e.ConfigureConsumer<VoteSaverConsumer>(context);
+            e.ConfigureConsumer<CastVoteCommandConsumer>(context);
         });
 
         cfg.ReceiveEndpoint(VoteQueueNames.AsyncVoteRecordedEventsQueue, e =>
@@ -72,7 +77,7 @@ builder.Services.AddMassTransit(x =>
             e.ConcurrentMessageLimit = projectionConcurrency;
             e.PrefetchCount = projectionPrefetch;
 
-            e.ConfigureConsumer<VoteProjectionConsumer>(context);
+            e.ConfigureConsumer<VoteRecordedEventConsumer>(context);
         });
     });
 });
@@ -144,4 +149,10 @@ static void ConfigureSqlTransientRetry(IRetryConfigurator retry)
 static bool IsTransientSqlException(Microsoft.Data.SqlClient.SqlException exception)
 {
     return exception.Number is 1205 or -2 or 4060 or 40197 or 40501 or 40613 or 49918 or 49919 or 49920;
+}
+
+static int ReadPositiveIntEnvironmentVariable(string name)
+{
+    var raw = Environment.GetEnvironmentVariable(name);
+    return int.TryParse(raw, out var value) && value > 0 ? value : 0;
 }

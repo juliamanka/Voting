@@ -1,7 +1,6 @@
 using Voting.Application.DTOs;
 using Voting.Application.Interfaces;
 using Voting.Domain.Repository;
-using PollResultOption = Voting.Application.DTOs.Options;
 
 namespace Voting.Application.Services;
 
@@ -26,7 +25,7 @@ public class ProjectionPollResultsReader : IPollResultsReader
         return projection is null ? null : Map(projection);
     }
 
-    private static PollResults Map(Voting.Domain.Entities.PollResultsProjection projection)
+    private static PollResults Map(Domain.Entities.PollResultsProjection projection)
     {
         return new PollResults
         {
@@ -36,7 +35,7 @@ public class ProjectionPollResultsReader : IPollResultsReader
             LastUpdatedAtUtc = projection.LastUpdatedAtUtc,
             Options = projection.Options
                 .OrderBy(o => o.OrderIndex)
-                .Select(o => new PollResultOption
+                .Select(o => new PollResultOptionDto
                 {
                     OptionId = o.PollOptionId,
                     OptionText = o.OptionText,

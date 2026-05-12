@@ -20,14 +20,6 @@ public class PollRepository  : IPollRepository
             .FirstOrDefaultAsync(p => p.PollId == pollId, cancellationToken);
     }
     
-    public async Task<IEnumerable<Poll> > GetAllAsync(CancellationToken cancellationToken)
-    {
-        return await _context.Polls
-            .Include(p=>p.Options)
-            .AsNoTracking()
-            .ToListAsync(cancellationToken);
-    }
-    
     public async Task<IEnumerable<Poll>> GetActivePollsWithOptionsAsync(CancellationToken cancellationToken)
     {
         return await _context.Polls

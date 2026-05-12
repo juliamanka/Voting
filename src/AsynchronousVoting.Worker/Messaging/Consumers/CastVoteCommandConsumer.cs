@@ -12,19 +12,19 @@ using ValidationException = FluentValidation.ValidationException;
 
 namespace AsynchronousVoting.Worker.Messaging.Consumers;
 
-public class VoteSaverConsumer : IConsumer<CastVoteCommand>
+public class CastVoteCommandConsumer : IConsumer<CastVoteCommand>
 {
     private readonly record struct SubmissionFailure(VoteStatus Status, string FailureReason);
 
     private readonly VotingDbContext _dbContext;
     private readonly IVoteWriteService _voteWriteService;
-    private readonly ILogger<VoteSaverConsumer> _logger;
+    private readonly ILogger<CastVoteCommandConsumer> _logger;
     private readonly string _instanceId;
 
-    public VoteSaverConsumer(
+    public CastVoteCommandConsumer(
         VotingDbContext dbContext,
         IVoteWriteService voteWriteService,
-        ILogger<VoteSaverConsumer> logger,
+        ILogger<CastVoteCommandConsumer> logger,
         IConfiguration configuration)
     {
         _dbContext = dbContext;

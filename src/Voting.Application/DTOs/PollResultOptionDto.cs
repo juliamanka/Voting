@@ -1,6 +1,6 @@
 namespace Voting.Application.DTOs;
 
-public class Options
+public class PollResultOptionDto
 {
     public Guid OptionId { get; set; }
     

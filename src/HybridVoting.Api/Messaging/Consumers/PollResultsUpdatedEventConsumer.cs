@@ -26,6 +26,7 @@ public class PollResultsUpdatedEventConsumer : IConsumer<PollResultsUpdatedEvent
         };
 
         var signalRStartedAtUtc = DateTime.UtcNow;
+        
         await _hubContext
             .Clients.Group(pollResults.PollId.ToString())
             .SendAsync("PollResultsUpdated", pollResults, context.CancellationToken);

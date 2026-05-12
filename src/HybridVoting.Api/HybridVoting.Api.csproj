@@ -7,7 +7,7 @@
     </PropertyGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\..\Voting.Api.Common\Voting.Api.Common.csproj" />
+      <ProjectReference Include="..\Voting.Api.Common\Voting.Api.Common.csproj" />
       <ProjectReference Include="..\Voting.Application\Voting.Application.csproj" />
       <ProjectReference Include="..\Voting.Domain\Voting.Domain.csproj" />
       <ProjectReference Include="..\Voting.Infrastructure\Voting.Infrastructure.csproj" />
@@ -18,26 +18,21 @@
         <PackageReference Include="MassTransit" Version="8.2.5" />
         <PackageReference Include="MassTransit.EntityFrameworkCore" Version="8.2.5" />
         <PackageReference Include="MassTransit.RabbitMQ" Version="8.2.5" />
-        <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.0" />
+        <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.1" />
         <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.11">
           <PrivateAssets>all</PrivateAssets>
           <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
         <PackageReference Include="OpenTelemetry" Version="1.14.0" />
-        <PackageReference Include="OpenTelemetry.Api" Version="1.14.0" />
         <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.13.1" />
         <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.13.0" />
         <PackageReference Include="OpenTelemetry.Instrumentation.EntityFrameworkCore" Version="1.13.0-beta.2" />
         <PackageReference Include="OpenTelemetry.Instrumentation.Http" Version="1.13.0" />
         <PackageReference Include="OpenTelemetry.Instrumentation.Process" Version="1.13.0-beta.1" />
         <PackageReference Include="OpenTelemetry.Instrumentation.Runtime" Version="1.13.0" />
-        <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.13.1" />
         <PackageReference Include="OpenTelemetry.Exporter.Prometheus.AspNetCore" Version="1.14.0-beta.1" />
         <PackageReference Include="OpenTelemetry.Exporter.Console" Version="1.13.1" />
-        <PackageReference Include="Serilog.AspNetCore" Version="9.0.0" />
-        <PackageReference Include="Swashbuckle.AspNetCore.Swagger" Version="10.0.1" />
-        <PackageReference Include="Swashbuckle.AspNetCore.SwaggerGen" Version="10.0.1" />
-        <PackageReference Include="Swashbuckle.AspNetCore.SwaggerUI" Version="10.0.1" />
+        <PackageReference Include="Swashbuckle.AspNetCore" Version="9.0.6" />
         <PackageReference Include="AspNetCore.HealthChecks.SqlServer" Version="9.0.0" />
     </ItemGroup>
 

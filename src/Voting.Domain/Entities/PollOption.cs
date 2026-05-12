@@ -10,22 +10,17 @@ public class PollOption
     public Guid PollOptionId { get; set; }
 
     [Required]
-    public Guid PollId { get; set; } 
+    public Guid PollId { get; set; }
 
     [Required]
     [MaxLength(200)]
-    public string Text { get; set; } 
+    public string Text { get; set; } = string.Empty;
     
     public int OrderIndex { get; set; }
     
-    [JsonIgnore] 
+    [JsonIgnore]
     [ForeignKey(nameof(PollId))]
-    public virtual Poll Poll { get; set; }
+    public virtual Poll Poll { get; set; } = null!;
 
-    public virtual ICollection<VoteRecord> Votes { get; set; }
-
-    public PollOption()
-    {
-        Votes = new HashSet<VoteRecord>();
-    }
+    public virtual ICollection<VoteRecord> Votes { get; set; } = new HashSet<VoteRecord>();
 }

@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 
 namespace Voting.Api.Common.RequestTiming;
@@ -35,17 +34,5 @@ public static class RequestTimingContext
         }
 
         return TimeSpan.Zero;
-    }
-}
-
-public static class RequestTimingApplicationBuilderExtensions
-{
-    public static IApplicationBuilder UseRequestTiming(this IApplicationBuilder app)
-    {
-        return app.Use(async (context, next) =>
-        {
-            RequestTimingContext.SetRequestStart(context, DateTime.UtcNow);
-            await next();
-        });
     }
 }

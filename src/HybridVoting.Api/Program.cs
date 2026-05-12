@@ -1,160 +1,36 @@
-using System.Text.Json;
-using System.Threading.RateLimiting;
 using HybridVoting.Api.Hubs;
 using HybridVoting.Api.Messaging.Consumers;
 using MassTransit;
-using Microsoft.AspNetCore.Diagnostics.HealthChecks;
-using OpenTelemetry.Metrics;
-using OpenTelemetry.Resources;
-using OpenTelemetry.Trace;
-using Serilog;
 using Voting.Api.Common;
 using Voting.Api.Common.RequestTiming;
 using Voting.Application;
 using Voting.Application.DTOs;
-using Voting.Application.Interfaces;
-using Voting.Application.Options;
+using Voting.Application.Messaging;
 using Voting.Infrastructure;
 using Voting.Infrastructure.Database;
 
 var builder = WebApplication.CreateBuilder(args);
 
-Log.Logger = new LoggerConfiguration()
-    .ReadFrom.Configuration(builder.Configuration)
-    .Enrich.FromLogContext()
-    .WriteTo.Console()
-    .CreateLogger();
-
-builder.Host.UseSerilog();
-
 const string CorsPolicy = "AllowFrontend";
 
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy(CorsPolicy, policy =>
-    {
-        policy
-            .WithOrigins("http://localhost:4200", "http://127.0.0.1:4200")
-            .AllowAnyHeader()
-            .AllowAnyMethod()
-            .AllowCredentials();
-    });
-});
-
-builder.Services.AddRateLimiter(options =>
-{
-    options.AddPolicy("votes-policy", context =>
-        RateLimitPartition.GetFixedWindowLimiter(
-            partitionKey: "global",
-            factory: _ => new FixedWindowRateLimiterOptions
-            {
-                PermitLimit = 400,
-                Window = TimeSpan.FromSeconds(1),
-                QueueLimit = 0, 
-                QueueProcessingOrder = QueueProcessingOrder.OldestFirst
-            }));
-});
+builder.Services.AddVotingCors(CorsPolicy);
+builder.Services.AddVoteRateLimiter();
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 builder.Services.AddApplicationServices();
-builder.Services.Configure<ProjectionOptions>(options =>
-{
-    options.DelayMs = builder.Configuration.GetValue<int?>("Chaos:ProjectionDelayMs")
-                      ?? ReadPositiveIntEnvironmentVariable("CHAOS_PROJECTION_DELAY_MS");
-});
+builder.Services.AddProjectionDelayOptions(builder.Configuration);
 builder.Services.AddInfrastructureServices(builder.Configuration);
 builder.Services.AddHttpContextAccessor();
-
 builder.Services.AddSignalR();
+
 builder.Services.AddGlobalExceptionHandling();
 
 const string serviceName = "HybridVoting.Api";
-
-var otel = builder.Services.AddOpenTelemetry();
-otel.ConfigureResource(resource =>
-    resource.AddService(serviceName));
-
-otel.WithMetrics(metrics =>
-{
-    metrics
-        .AddAspNetCoreInstrumentation()
-        .AddView("http.server.request.duration", new ExplicitBucketHistogramConfiguration
-        {
-            Boundaries = new[]
-            {
-                0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5,
-                1, 2, 5, 10, 20, 30, 45, 60, 90, 120, 180, 240, 300
-            }
-        })
-        .AddMeter("HybridVoting.Api.Metrics")
-            .AddView("vote_http_response_latency_seconds", new ExplicitBucketHistogramConfiguration
-            {
-                Boundaries = new[]
-                {
-                    0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5,
-                    1, 2, 5, 10, 20, 30, 45, 60, 90, 120, 180, 240, 300
-                }
-            })
-            .AddView("vote_durable_write_duration_seconds", new ExplicitBucketHistogramConfiguration
-            {
-                Boundaries = new[]
-                {
-                    0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5,
-                    1, 2, 5, 10, 20, 30, 45, 60, 90, 120, 180, 240, 300
-                }
-            })
-            .AddView("results_notification_completion_duration_seconds", new ExplicitBucketHistogramConfiguration
-            {
-                Boundaries = new[]
-                {
-                    0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5,
-                    1, 2, 5, 10, 20, 30, 45, 60, 90, 120, 180, 240, 300
-                }
-            })
-            .AddView("poll_results_updated_event_queue_delay_seconds", new ExplicitBucketHistogramConfiguration
-            {
-                Boundaries = new[]
-                {
-                    0.001, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5,
-                    1, 2, 5, 10, 20, 30, 45, 60, 90, 120, 180, 240, 300
-                }
-            })
-            .AddView("signalr_send_duration_seconds", new ExplicitBucketHistogramConfiguration
-            {
-                Boundaries = new[]
-                {
-                    0.001, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5,
-                    1, 2, 5, 10, 20, 30
-                }
-            })
-            .AddView("ux_vote_latency_seconds", new ExplicitBucketHistogramConfiguration
-            {
-                Boundaries = new[]
-            {
-                0.01, 0.02, 0.05, 0.1, 0.2, 0.5,
-                1, 2, 5, 10, 15, 20, 30, 45, 60, 90, 120
-            }
-        })
-        .AddHttpClientInstrumentation()
-        .AddRuntimeInstrumentation()
-        .AddProcessInstrumentation()
-        .AddPrometheusExporter();
-});
-otel.WithTracing(tracing =>
-{
-    tracing
-        .AddAspNetCoreInstrumentation()
-        .AddEntityFrameworkCoreInstrumentation()
-        .AddHttpClientInstrumentation();
-});
-
-builder.Services.AddHealthChecks()
-    .AddSqlServer(
-        connectionString: builder.Configuration.GetConnectionString("DefaultConnection"),
-        name: "sqlserver");
+builder.Services.AddVotingOpenTelemetry(serviceName, "HybridVoting.Api.Metrics");
+builder.Services.AddVotingSqlHealthChecks(builder.Configuration);
 
 
 var rabbitSection = builder.Configuration.GetSection("RabbitMq");
@@ -185,7 +61,7 @@ builder.Services.AddMassTransit(x =>
 
         cfg.Message<PollResultsUpdatedEvent>(m => m.SetEntityName("hybrid-poll-results-updated-exchange"));
         
-        cfg.ReceiveEndpoint("hybrid-poll-results-updated-events", e =>
+        cfg.ReceiveEndpoint(VoteQueueNames.HybridPollResultsUpdatedEventsQueue, e =>
         {
             e.UseEntityFrameworkOutbox<VotingDbContext>(context);
             e.ConfigureConsumer<PollResultsUpdatedEventConsumer>(context);
@@ -214,27 +90,7 @@ app.UseRateLimiter();
 
 app.UseAuthorization();
 
-app.MapHealthChecks("/health", new HealthCheckOptions
-{
-    ResponseWriter = async (context, report) =>
-    {
-        context.Response.ContentType = "application/json; charset=utf-8";
-
-        var response = new
-        {
-            status = report.Status.ToString(),
-            checks = report.Entries.Select(e => new
-            {
-                name = e.Key,
-                status = e.Value.Status.ToString(),
-                description = e.Value.Description,
-                error = e.Value.Exception?.Message
-            })
-        };
-
-        await context.Response.WriteAsync(JsonSerializer.Serialize(response));
-    }
-});
+app.MapVotingJsonHealthChecks();
 
 app.UseOpenTelemetryPrometheusScrapingEndpoint();
 
@@ -242,9 +98,3 @@ app.MapControllers();
 app.MapHub<ResultsHub>("/hubs/results");
 
 app.Run();
-
-static int ReadPositiveIntEnvironmentVariable(string name)
-{
-    var raw = Environment.GetEnvironmentVariable(name);
-    return int.TryParse(raw, out var value) && value > 0 ? value : 0;
-}

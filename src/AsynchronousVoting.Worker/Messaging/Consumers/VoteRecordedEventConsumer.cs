@@ -9,15 +9,15 @@ using Voting.Domain.Enums;
 
 namespace AsynchronousVoting.Worker.Messaging.Consumers;
 
-public class VoteProjectionConsumer : IConsumer<VoteRecordedEvent>
+public class VoteRecordedEventConsumer : IConsumer<VoteRecordedEvent>
 {
     private readonly IVoteProjectionAndAuditService _voteProjectionAndAuditService;
-    private readonly ILogger<VoteProjectionConsumer> _logger;
+    private readonly ILogger<VoteRecordedEventConsumer> _logger;
     private readonly string _instanceId;
 
-    public VoteProjectionConsumer(
+    public VoteRecordedEventConsumer(
         IVoteProjectionAndAuditService voteProjectionAndAuditService,
-        ILogger<VoteProjectionConsumer> logger,
+        ILogger<VoteRecordedEventConsumer> logger,
         IConfiguration configuration)
     {
         _voteProjectionAndAuditService = voteProjectionAndAuditService;
@@ -58,9 +58,6 @@ public class VoteProjectionConsumer : IConsumer<VoteRecordedEvent>
         VotingMetrics.VoteProjectionCompletionDurationSeconds.Record(
             Math.Max(0, (completedAtUtc - msg.RequestStartedAtUtc).TotalSeconds), tags);
 
-        // Comparable with hybrid: publishedAt → stage2 consume start
-        // = time VoteRecordedEvent waited in async-vote-recorded-events queue.
-        // Hybrid measures the same span (publishedAt → workerStart) for its projection queue.
         VotingMetrics.VoteRecordedEventQueueDelaySeconds.Record(
             Math.Max(0, (stage2WorkerStartedAtUtc - msg.PublishedAtUtc).TotalSeconds), tags);
 

@@ -10,7 +10,7 @@ public static class VotingMetrics
         Meter.CreateHistogram<double>(
             name: "vote_http_response_latency_seconds",
             unit: "s",
-            description: "HTTP response latency for POST /api/vote in asynchronous API");
+            description: "Time from HTTP request start to response creation");
 
     public static readonly Histogram<double> ResultsNotificationCompletionDurationSeconds =
         Meter.CreateHistogram<double>(

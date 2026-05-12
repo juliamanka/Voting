@@ -14,7 +14,6 @@ public class VotingDbContext : DbContext
     public DbSet<VoteRecord> Votes { get; set; }
     public DbSet<VoteSubmission> VoteSubmissions { get; set; }
     public DbSet<Poll> Polls { get; set; }
-    public DbSet<PollOption> PollOptions { get; set; }
     public DbSet<VoterEligibility> VoterEligibilities { get; set; }
     public DbSet<VoteAuditLog> VoteAuditLogs { get; set; }
     public DbSet<PollResultsProjection> PollResultsProjections { get; set; }

@@ -1,8 +1,7 @@
-using AsynchronousVoting.Api.Monitoring;
+using AsynchronousVoting.Api.Notifiers;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
-using Voting.Api.Common.RequestTiming;
 using Voting.Application.DTOs;
 using Voting.Application.Interfaces;
 using Voting.Domain.Enums;
@@ -15,16 +14,16 @@ namespace AsynchronousVoting.Api.Controllers;
 [EnableRateLimiting("votes-policy")]
 public class VotesController : ControllerBase
 {
-    private readonly IVoteNotifier _voteNotifier;
+    private readonly IVoteSubmissionPublisher _voteSubmissionPublisher;
     private readonly VotingDbContext _dbContext;
     private readonly IVoteValidationService _voteValidationService;
 
     public VotesController(
-        IVoteNotifier voteNotifier,
+        IVoteSubmissionPublisher voteSubmissionPublisher,
         VotingDbContext dbContext,
         IVoteValidationService voteValidationService)
     {
-        _voteNotifier = voteNotifier;
+        _voteSubmissionPublisher = voteSubmissionPublisher;
         _dbContext = dbContext;
         _voteValidationService = voteValidationService;
     }
@@ -35,10 +34,7 @@ public class VotesController : ControllerBase
     {
         await _voteValidationService.ValidateAsync(request, ct);
 
-        var submissionId = await _voteNotifier.NotifyVoteAsync(request.PollId, request.PollOptionId, request.UserId, ct);
-
-        var responseLatency = RequestTimingContext.GetElapsedSinceRequestStart(HttpContext);
-        VotingMetrics.VoteHttpResponseLatencySeconds.Record(responseLatency.TotalSeconds);
+        var submissionId = await _voteSubmissionPublisher.SubmitVoteAsync(request.PollId, request.PollOptionId, request.UserId, ct);
 
         return Accepted(new VoteAcceptedResponse
         {

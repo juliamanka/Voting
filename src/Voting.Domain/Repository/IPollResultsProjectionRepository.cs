@@ -9,8 +9,5 @@ public interface IPollResultsProjectionRepository
     Task<PollResultsProjection?> GetByPollIdAsync(Guid pollId, CancellationToken cancellationToken);
     
     Task<PollResultsProjection> ApplyVoteAcceptedAsync(
-        Poll poll,
-        VoteRecord vote,
-        VoteAuditLog auditLog,
-        CancellationToken cancellationToken);
+        Poll poll, VoteRecord vote, VoteAuditLog auditLog, CancellationToken cancellationToken);
 }

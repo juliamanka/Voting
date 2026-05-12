@@ -20,7 +20,7 @@ public static class MigrationExtensions
         }
         catch (Exception ex)
         {
-            var logger = services.GetRequiredService<Microsoft.Extensions.Logging.ILogger<VotingDbContext>>();
+            var logger = services.GetRequiredService<ILogger<VotingDbContext>>();
             logger.LogError(ex, "An error occurred while migrating the database.");
         }
     }

@@ -49,6 +49,7 @@ public class VoteController : ControllerBase
                 requestStartedAtUtc,
                 DateTime.UtcNow),
             cancellationToken);
+        
         await _dbContext.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         var voteCommittedAtUtc = DateTime.UtcNow;
@@ -61,7 +62,9 @@ public class VoteController : ControllerBase
         VotingMetrics.VoteDurableWriteDurationSeconds.Record(
             Math.Max(0, (voteCommittedAtUtc - requestStartedAtUtc).TotalSeconds),
             tags);
-        VotingMetrics.VoteHttpResponseLatencySeconds.Record(responseLatency.TotalSeconds, tags);
+        VotingMetrics.VoteHttpResponseLatencySeconds.Record(
+            Math.Max(0, responseLatency.TotalSeconds),
+            tags);
         
         return CreatedAtAction(nameof(CastVote), new { id = vote.VoteId }, new VoteResponse
         {

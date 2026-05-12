@@ -16,14 +16,6 @@ public class VoteRepository : IVoteRepository
         _context = context;
     }
 
-    public async Task<IEnumerable<VoteRecord>> GetVotes(CancellationToken cancellationToken)
-    {
-        var votes = await _context.Votes
-            .ToListAsync(cancellationToken: cancellationToken);
-
-        return votes;
-    }
-
     public async Task<VoteRecord> AddVoteAsync(VoteRecord vote, CancellationToken cancellationToken)
     {
         try
@@ -44,21 +36,5 @@ public class VoteRepository : IVoteRepository
     {
         return _context.Votes
             .AnyAsync(v => v.PollId == pollId && v.UserId == userId && v.Status == VoteStatus.Counted, cancellationToken);
-    }
-    
-    public async Task<Dictionary<Guid, int>> GetVoteCountsByPollIdAsync(Guid pollId, CancellationToken cancellationToken)
-    {
-        return await _context.Votes
-            .Where(v => v.PollId == pollId && v.Status == VoteStatus.Counted)
-            .GroupBy(v => v.PollOptionId)
-            .Select(g => new { OptionId = g.Key, Count = g.Count() })
-            .ToDictionaryAsync(x => x.OptionId, x => x.Count, cancellationToken);
-    }
-
-    public async Task<DateTime?> GetLatestVoteTimestampAsync(Guid pollId, CancellationToken cancellationToken)
-    {
-        return await _context.Votes
-            .Where(v => v.PollId == pollId && v.Status == VoteStatus.Counted)
-            .MaxAsync(v => (DateTime?)v.Timestamp, cancellationToken);
     }
 }

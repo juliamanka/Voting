@@ -16,13 +16,13 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AsynchronousVoting.Api", "s
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AsynchronousVoting.Worker", "src\AsynchronousVoting.Worker\AsynchronousVoting.Worker.csproj", "{0B1DDF6B-61C6-4C77-BEA1-3E2DAE30C9FD}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Voting.Api.Common", "Voting.Api.Common\Voting.Api.Common.csproj", "{65C4F8A3-68CA-484B-9F10-830FFD66595E}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HybridVoting.Api", "src\HybridVoting.Api\HybridVoting.Api.csproj", "{C51B5BE7-9ECE-41CE-B434-32322B3DE727}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Voting.LoadTests", "src\Voting.LoadTests\Voting.LoadTests.csproj", "{55BAFAC9-0182-4DC3-BF53-4DF99DE3A381}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Hybrid.Worker", "src\Hybrid.Worker\Hybrid.Worker.csproj", "{EF6F36E6-CE69-47E4-8F11-744609DD3DEF}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Voting.Api.Common", "src\Voting.Api.Common\Voting.Api.Common.csproj", "{D27BB1C6-4BF0-4E56-8639-136C6C25E69B}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -54,10 +54,6 @@ Global
 		{0B1DDF6B-61C6-4C77-BEA1-3E2DAE30C9FD}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{0B1DDF6B-61C6-4C77-BEA1-3E2DAE30C9FD}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{0B1DDF6B-61C6-4C77-BEA1-3E2DAE30C9FD}.Release|Any CPU.Build.0 = Release|Any CPU
-		{65C4F8A3-68CA-484B-9F10-830FFD66595E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{65C4F8A3-68CA-484B-9F10-830FFD66595E}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{65C4F8A3-68CA-484B-9F10-830FFD66595E}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{65C4F8A3-68CA-484B-9F10-830FFD66595E}.Release|Any CPU.Build.0 = Release|Any CPU
 		{C51B5BE7-9ECE-41CE-B434-32322B3DE727}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{C51B5BE7-9ECE-41CE-B434-32322B3DE727}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{C51B5BE7-9ECE-41CE-B434-32322B3DE727}.Release|Any CPU.ActiveCfg = Release|Any CPU
@@ -70,6 +66,10 @@ Global
 		{EF6F36E6-CE69-47E4-8F11-744609DD3DEF}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{EF6F36E6-CE69-47E4-8F11-744609DD3DEF}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{EF6F36E6-CE69-47E4-8F11-744609DD3DEF}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D27BB1C6-4BF0-4E56-8639-136C6C25E69B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D27BB1C6-4BF0-4E56-8639-136C6C25E69B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D27BB1C6-4BF0-4E56-8639-136C6C25E69B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D27BB1C6-4BF0-4E56-8639-136C6C25E69B}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -83,5 +83,6 @@ Global
 		{0B1DDF6B-61C6-4C77-BEA1-3E2DAE30C9FD} = {D62ACDBE-F5C4-49B7-9A68-2B5EB685807A}
 		{C51B5BE7-9ECE-41CE-B434-32322B3DE727} = {D62ACDBE-F5C4-49B7-9A68-2B5EB685807A}
 		{55BAFAC9-0182-4DC3-BF53-4DF99DE3A381} = {D62ACDBE-F5C4-49B7-9A68-2B5EB685807A}
+		{D27BB1C6-4BF0-4E56-8639-136C6C25E69B} = {D62ACDBE-F5C4-49B7-9A68-2B5EB685807A}
 	EndGlobalSection
 EndGlobal

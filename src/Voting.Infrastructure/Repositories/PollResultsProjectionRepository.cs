@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Voting.Domain.Entities;
 using Voting.Domain.Repository;
 using Voting.Infrastructure.Database;
@@ -14,18 +15,18 @@ public class PollResultsProjectionRepository : IPollResultsProjectionRepository
         _context = context;
     }
 
-    public Task<List<PollResultsProjection>> GetAllAsync(CancellationToken cancellationToken)
+    public async Task<List<PollResultsProjection>> GetAllAsync(CancellationToken cancellationToken)
     {
-        return _context.PollResultsProjections
+        return await _context.PollResultsProjections
             .AsNoTracking()
             .Include(p => p.Options)
             .OrderBy(p => p.PollTitle)
             .ToListAsync(cancellationToken);
     }
 
-    public Task<PollResultsProjection?> GetByPollIdAsync(Guid pollId, CancellationToken cancellationToken)
+    public async Task<PollResultsProjection?> GetByPollIdAsync(Guid pollId, CancellationToken cancellationToken)
     {
-        return _context.PollResultsProjections
+        return await _context.PollResultsProjections
             .AsNoTracking()
             .Include(p => p.Options)
             .FirstOrDefaultAsync(p => p.PollId == pollId, cancellationToken);
@@ -44,77 +45,102 @@ public class PollResultsProjectionRepository : IPollResultsProjectionRepository
 
         try
         {
-            await _context.VoteAuditLogs.AddAsync(auditLog, cancellationToken);
+            var isFirstProcessing = await TryAddAuditLogAsync(auditLog, ownsTransaction, transaction, cancellationToken);
+
+            if (!isFirstProcessing)
+            {
+                return await GetRequiredByPollIdAsync(poll.PollId, cancellationToken);
+            }
+
+            var pollProjectionExists = await IncrementPollProjectionAsync(poll, vote, cancellationToken);
+
+            if (!pollProjectionExists)
+            {
+                await CreatePollProjectionWithVoteAsync(poll, vote, cancellationToken);
+            }
+            else
+            {
+                var optionProjectionExists = await IncrementOptionProjectionAsync(vote, cancellationToken);
+
+                if (!optionProjectionExists)
+                {
+                    await CreateOptionProjectionWithVoteAsync(poll, vote, cancellationToken);
+                }
+            }
+
             await _context.SaveChangesAsync(cancellationToken);
-
-            var projectionRows = await _context.PollResultsProjections
-                .Where(p => p.PollId == poll.PollId)
-                .ExecuteUpdateAsync(setters => setters
-                    .SetProperty(p => p.PollTitle, poll.Question)
-                    .SetProperty(p => p.TotalVotes, p => p.TotalVotes + 1)
-                    .SetProperty(p => p.LastUpdatedAtUtc, vote.Timestamp),
-                    cancellationToken);
-
-            if (projectionRows == 0)
-            {
-                await CreateProjectionAsync(poll, cancellationToken);
-                await _context.PollResultsProjections
-                    .Where(p => p.PollId == poll.PollId)
-                    .ExecuteUpdateAsync(setters => setters
-                            .SetProperty(p => p.TotalVotes, p => p.TotalVotes + 1)
-                            .SetProperty(p => p.LastUpdatedAtUtc, vote.Timestamp),
-                        cancellationToken);
-            }
-
-            var optionRows = await _context.PollOptionResultsProjections
-                .Where(p => p.PollId == poll.PollId && p.PollOptionId == vote.PollOptionId)
-                .ExecuteUpdateAsync(setters => setters
-                    .SetProperty(p => p.VoteCount, p => p.VoteCount + 1),
-                    cancellationToken);
-
-            if (optionRows == 0)
-            {
-                await CreateOptionProjectionAsync(poll, vote.PollOptionId, cancellationToken);
-                await _context.PollOptionResultsProjections
-                    .Where(p => p.PollId == poll.PollId && p.PollOptionId == vote.PollOptionId)
-                    .ExecuteUpdateAsync(setters => setters
-                            .SetProperty(p => p.VoteCount, p => p.VoteCount + 1),
-                        cancellationToken);
-            }
 
             if (ownsTransaction)
             {
                 await transaction!.CommitAsync(cancellationToken);
             }
+
+            return await GetRequiredByPollIdAsync(poll.PollId, cancellationToken);
         }
-        catch (DbUpdateException ex) when (ex.IsUniqueConstraintViolation())
+        catch
         {
-            _context.Entry(auditLog).State = EntityState.Detached;
             if (ownsTransaction)
             {
                 await transaction!.RollbackAsync(cancellationToken);
             }
+
+            throw;
         }
-
-        return await GetProjectionAsync(poll.PollId, cancellationToken);
     }
-
-    private Task<PollResultsProjection> GetProjectionAsync(Guid pollId, CancellationToken cancellationToken)
+    
+    private async Task<bool> TryAddAuditLogAsync(
+        VoteAuditLog auditLog,
+        bool ownsTransaction,
+        IDbContextTransaction? transaction,
+        CancellationToken cancellationToken)
     {
-        return _context.PollResultsProjections
-            .AsNoTracking()
-            .Include(p => p.Options)
-            .FirstAsync(p => p.PollId == pollId, cancellationToken);
+        try
+        {
+            await _context.VoteAuditLogs.AddAsync(auditLog, cancellationToken);
+
+            // Force unique VoteId check before incrementing projections.
+            await _context.SaveChangesAsync(cancellationToken);
+
+            return true;
+        }
+        catch (DbUpdateException ex) when (ex.IsUniqueConstraintViolation())
+        {
+            _context.Entry(auditLog).State = EntityState.Detached;
+
+            if (ownsTransaction)
+            {
+                await transaction!.RollbackAsync(cancellationToken);
+            }
+
+            return false;
+        }
     }
-
-    private async Task CreateProjectionAsync(Poll poll, CancellationToken cancellationToken)
+    private async Task<bool> IncrementPollProjectionAsync(
+        Poll poll,
+        VoteRecord vote,
+        CancellationToken cancellationToken)
     {
-        var projection = new PollResultsProjection
+        var rows = await _context.PollResultsProjections
+            .Where(p => p.PollId == poll.PollId)
+            .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(p => p.PollTitle, poll.Question)
+                    .SetProperty(p => p.TotalVotes, p => p.TotalVotes + 1)
+                    .SetProperty(p => p.LastUpdatedAtUtc, vote.Timestamp),
+                cancellationToken);
+
+        return rows > 0;
+    }
+    private async Task CreatePollProjectionWithVoteAsync(
+        Poll poll,
+        VoteRecord vote,
+        CancellationToken cancellationToken)
+    {
+        await _context.PollResultsProjections.AddAsync(new PollResultsProjection
         {
             PollId = poll.PollId,
             PollTitle = poll.Question,
-            TotalVotes = 0,
-            LastUpdatedAtUtc = poll.CreatedAt,
+            TotalVotes = 1,
+            LastUpdatedAtUtc = vote.Timestamp,
             Options = poll.Options
                 .OrderBy(o => o.OrderIndex)
                 .Select(o => new PollOptionResultsProjection
@@ -123,26 +149,47 @@ public class PollResultsProjectionRepository : IPollResultsProjectionRepository
                     PollOptionId = o.PollOptionId,
                     OptionText = o.Text,
                     OrderIndex = o.OrderIndex,
-                    VoteCount = 0
+                    VoteCount = o.PollOptionId == vote.PollOptionId ? 1 : 0
                 })
                 .ToList()
-        };
+        }, cancellationToken);
+    }
+    private async Task<bool> IncrementOptionProjectionAsync(
+        VoteRecord vote,
+        CancellationToken cancellationToken)
+    {
+        var rows = await _context.PollOptionResultsProjections
+            .Where(p => p.PollId == vote.PollId && p.PollOptionId == vote.PollOptionId)
+            .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(p => p.VoteCount, p => p.VoteCount + 1),
+                cancellationToken);
 
-        await _context.PollResultsProjections.AddAsync(projection, cancellationToken);
-        await _context.SaveChangesAsync(cancellationToken);
+        return rows > 0;
     }
 
-    private async Task CreateOptionProjectionAsync(Poll poll, Guid pollOptionId, CancellationToken cancellationToken)
+    private async Task CreateOptionProjectionWithVoteAsync(
+        Poll poll,
+        VoteRecord vote,
+        CancellationToken cancellationToken)
     {
-        var option = poll.Options.First(o => o.PollOptionId == pollOptionId);
+        var option = poll.Options.First(o => o.PollOptionId == vote.PollOptionId);
+
         await _context.PollOptionResultsProjections.AddAsync(new PollOptionResultsProjection
         {
             PollId = poll.PollId,
             PollOptionId = option.PollOptionId,
             OptionText = option.Text,
             OrderIndex = option.OrderIndex,
-            VoteCount = 0
+            VoteCount = 1
         }, cancellationToken);
-        await _context.SaveChangesAsync(cancellationToken);
+    }
+    
+    private async Task<PollResultsProjection> GetRequiredByPollIdAsync(
+        Guid pollId,
+        CancellationToken cancellationToken)
+    {
+        return await GetByPollIdAsync(pollId, cancellationToken)
+               ?? throw new InvalidOperationException(
+                   $"Poll results projection {pollId} was not found.");
     }
 }

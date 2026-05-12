@@ -9,10 +9,10 @@ public class Poll
 
     [Required]
     [MaxLength(500)]
-    public string Question { get; set; }
+    public string Question { get; set; } = string.Empty;
 
     [Required]
-    public virtual ICollection<PollOption> Options { get; set; }
+    public virtual ICollection<PollOption> Options { get; set; } = new HashSet<PollOption>();
 
     public bool IsActive { get; set; }
 
@@ -20,12 +20,10 @@ public class Poll
 
     public DateTime CreatedAt { get; set; }
 
-    public virtual ICollection<VoteRecord> Votes { get; set; }
+    public virtual ICollection<VoteRecord> Votes { get; set; } = new HashSet<VoteRecord>();
 
     public Poll()
     {
-        Votes = new HashSet<VoteRecord>();
-        Options = new HashSet<PollOption>();
         CreatedAt = DateTime.UtcNow;
         IsActive = true;
         RequiresEligibilityCheck = true;

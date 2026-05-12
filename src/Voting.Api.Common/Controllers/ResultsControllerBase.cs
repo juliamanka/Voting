@@ -18,7 +18,7 @@ public abstract class ResultsControllerBase : ControllerBase
     [ProducesResponseType(typeof(IEnumerable<PollResults>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetResults(CancellationToken cancellationToken)
     {
-        var results = await _pollService.GetAllVotesForPolls(cancellationToken);
+        var results = await _pollService.GetAllPollResults(cancellationToken);
         return Ok(results);
     }
 }

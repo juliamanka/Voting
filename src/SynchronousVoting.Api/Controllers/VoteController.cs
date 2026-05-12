@@ -3,7 +3,6 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.SignalR;
 using SynchronousVoting.Api.Hubs;
 using SynchronousVoting.Api.Monitoring;
-using System.Diagnostics;
 using Voting.Api.Common.RequestTiming;
 using Voting.Application.DTOs;
 using Voting.Application.Interfaces;
@@ -39,8 +38,8 @@ public class VoteController : ControllerBase
     {
         var requestStartedAtUtc = RequestTimingContext.GetRequestStartedAtUtc(HttpContext, DateTime.UtcNow);
         var result = await _votingService.ProcessVoteAsync(request, cancellationToken);
-        var receipt = result.Response;
-        var updatedResults = await _pollService.GetVotesForPoll(request.PollId, cancellationToken);
+        var response = result.Response;
+        var updatedResults = await _pollService.GetPollResults(request.PollId, cancellationToken);
         DateTime? signalRStartedAtUtc = null;
         DateTime? signalRCompletedAtUtc = null;
         if (updatedResults is not null)
@@ -61,6 +60,9 @@ public class VoteController : ControllerBase
         VotingMetrics.VoteDurableWriteDurationSeconds.Record(
             Math.Max(0, (result.VoteCommittedAtUtc - requestStartedAtUtc).TotalSeconds),
             tags);
+        VotingMetrics.VoteHttpResponseLatencySeconds.Record(
+            Math.Max(0, responseLatency.TotalSeconds),
+            tags);
         VotingMetrics.VoteProjectionCompletionDurationSeconds.Record(
             Math.Max(0, (result.ProjectionCompletedAtUtc - requestStartedAtUtc).TotalSeconds),
             tags);
@@ -73,8 +75,6 @@ public class VoteController : ControllerBase
                 Math.Max(0, (signalRCompletedAtUtc.Value - requestStartedAtUtc).TotalSeconds),
                 tags);
         }
-        VotingMetrics.VoteHttpResponseLatencySeconds.Record(responseLatency.TotalSeconds, tags);
-
-        return CreatedAtAction(nameof(SubmitVote), new { id = receipt.VoteId }, receipt);
+        return CreatedAtAction(nameof(SubmitVote), new { id = response.VoteId }, response);
     }
 }

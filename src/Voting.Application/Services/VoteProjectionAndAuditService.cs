@@ -4,7 +4,6 @@ using Voting.Application.Interfaces;
 using Voting.Application.Options;
 using Voting.Domain.Entities;
 using Voting.Domain.Repository;
-using PollResultOption = Voting.Application.DTOs.Options;
 
 namespace Voting.Application.Services;
 
@@ -62,7 +61,7 @@ public class VoteProjectionAndAuditService : IVoteProjectionAndAuditService
             LastUpdatedAtUtc = projection.LastUpdatedAtUtc,
             Options = projection.Options
                 .OrderBy(o => o.OrderIndex)
-                .Select(o => new PollResultOption
+                .Select(o => new PollResultOptionDto
                 {
                     OptionId = o.PollOptionId,
                     OptionText = o.OptionText,

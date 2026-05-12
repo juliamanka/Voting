@@ -4,6 +4,8 @@ using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using Voting.Application;
 using Voting.Application.DTOs;
+using Voting.Application.Messaging;
+using Voting.Application.Options;
 using Voting.Infrastructure;
 using Voting.Infrastructure.Database;
 
@@ -28,6 +30,11 @@ var enableProjectionProjector = builder.Configuration.GetValue<bool?>("Worker:En
 
 builder.Services.AddInfrastructureServices(builder.Configuration);
 builder.Services.AddApplicationServices();
+builder.Services.Configure<ProjectionOptions>(options =>
+{
+    options.DelayMs = builder.Configuration.GetValue<int?>("Chaos:ProjectionDelayMs")
+                      ?? ReadPositiveIntEnvironmentVariable("CHAOS_PROJECTION_DELAY_MS");
+});
 
 builder.Services.AddMassTransit(x =>
 {
@@ -49,7 +56,7 @@ builder.Services.AddMassTransit(x =>
         if (enableProjectionProjector)
         {
             cfg.Message<PollResultsUpdatedEvent>(m => m.SetEntityName("hybrid-poll-results-updated-exchange"));
-            cfg.ReceiveEndpoint("hybrid-vote-recorded-events", e =>
+            cfg.ReceiveEndpoint(VoteQueueNames.HybridVoteRecordedEvenetsQueue, e =>
             {
                 e.UseEntityFrameworkOutbox<VotingDbContext>(context);
                 e.UseMessageRetry(ConfigureSqlTransientRetry);
@@ -111,4 +118,10 @@ static void ConfigureSqlTransientRetry(IRetryConfigurator retry)
 static bool IsTransientSqlException(Microsoft.Data.SqlClient.SqlException exception)
 {
     return exception.Number is 1205 or -2 or 4060 or 40197 or 40501 or 40613 or 49918 or 49919 or 49920;
+}
+
+static int ReadPositiveIntEnvironmentVariable(string name)
+{
+    var raw = Environment.GetEnvironmentVariable(name);
+    return int.TryParse(raw, out var value) && value > 0 ? value : 0;
 }

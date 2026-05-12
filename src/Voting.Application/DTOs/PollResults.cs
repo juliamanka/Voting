@@ -10,5 +10,5 @@ public class PollResults
 
     public DateTime LastUpdatedAtUtc { get; set; }
     
-    public List<Options> Options { get; set; } = new();
+    public List<PollResultOptionDto> Options { get; set; } = new();
 }

@@ -11,23 +11,30 @@ public class VoteWriteService : IVoteWriteService
 {
     private readonly IVoteValidationService _voteValidationService;
     private readonly IVoteRepository _voteRepository;
-    private readonly IMapper _mapper;
 
     public VoteWriteService(
         IVoteValidationService voteValidationService,
-        IVoteRepository voteRepository,
-        IMapper mapper)
+        IVoteRepository voteRepository
+        )
     {
         _voteValidationService = voteValidationService;
         _voteRepository = voteRepository;
-        _mapper = mapper;
     }
 
     public async Task<VoteRecord> WriteVoteAsync(VoteRequest voteRequest, CancellationToken cancellationToken)
     {
         await _voteValidationService.ValidateAsync(voteRequest, cancellationToken);
 
-        var voteRecord = _mapper.Map<VoteRecord>(voteRequest);
+        var voteRecord = new VoteRecord
+        {
+            VoteId = Guid.NewGuid(),
+            PollId = voteRequest.PollId,
+            PollOptionId = voteRequest.PollOptionId,
+            UserId = voteRequest.UserId,
+            Status = VoteStatus.Counted,
+            Timestamp = DateTime.UtcNow
+        };
+        
         voteRecord.Status = VoteStatus.Counted;
 
         return await _voteRepository.AddVoteAsync(voteRecord, cancellationToken);

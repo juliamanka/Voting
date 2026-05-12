@@ -1,3 +1,4 @@
+using AsynchronousVoting.Api.Monitoring;
 using MassTransit;
 using Microsoft.AspNetCore.Http;
 using Voting.Api.Common.RequestTiming;
@@ -10,18 +11,18 @@ using Voting.Infrastructure.Database;
 
 namespace AsynchronousVoting.Api.Notifiers;
 
-public class AsyncVoteNotifier : IVoteNotifier
+public class VoteSubmissionPublisher : IVoteSubmissionPublisher
 {
     private readonly ISendEndpointProvider _sendEndpointProvider;
     private readonly VotingDbContext _dbContext;
     private readonly IHttpContextAccessor _httpContextAccessor;
-    private readonly ILogger<AsyncVoteNotifier> _logger;
+    private readonly ILogger<VoteSubmissionPublisher> _logger;
 
-    public AsyncVoteNotifier(
+    public VoteSubmissionPublisher(
         ISendEndpointProvider sendEndpointProvider,
         VotingDbContext dbContext,
         IHttpContextAccessor httpContextAccessor,
-        ILogger<AsyncVoteNotifier> logger)
+        ILogger<VoteSubmissionPublisher> logger)
     {
         _sendEndpointProvider = sendEndpointProvider;
         _dbContext = dbContext;
@@ -29,7 +30,7 @@ public class AsyncVoteNotifier : IVoteNotifier
         _logger = logger;
     }
 
-    public async Task<Guid> NotifyVoteAsync(Guid pollId, Guid optionId, string? userId, CancellationToken ct)
+    public async Task<Guid> SubmitVoteAsync(Guid pollId, Guid optionId, string? userId, CancellationToken ct)
     {
         using var transaction = await _dbContext.Database.BeginTransactionAsync(ct);
 
@@ -39,6 +40,7 @@ public class AsyncVoteNotifier : IVoteNotifier
                 _httpContextAccessor.HttpContext,
                 DateTime.UtcNow);
             var acceptedAtUtc = DateTime.UtcNow;
+            var httpResponseLatencyMs = Math.Max(0L, (long)(acceptedAtUtc - requestStartedAtUtc).TotalMilliseconds);
             var submissionId = Guid.NewGuid();
             var command = new CastVoteCommand(
                 submissionId,
@@ -57,7 +59,7 @@ public class AsyncVoteNotifier : IVoteNotifier
                 Status = VoteStatus.Pending,
                 RequestStartedAtUtc = requestStartedAtUtc,
                 AcceptedAtUtc = acceptedAtUtc,
-                HttpResponseLatencyMs = Math.Max(0L, (long)(acceptedAtUtc - requestStartedAtUtc).TotalMilliseconds)
+                HttpResponseLatencyMs = httpResponseLatencyMs
             };
 
             await _dbContext.VoteSubmissions.AddAsync(submission, ct);
@@ -77,6 +79,13 @@ public class AsyncVoteNotifier : IVoteNotifier
             await _dbContext.SaveChangesAsync(ct);
 
             await transaction.CommitAsync(ct);
+
+            VotingMetrics.VoteHttpResponseLatencySeconds.Record(
+                httpResponseLatencyMs / 1000.0,
+                new KeyValuePair<string, object?>[]
+                {
+                    new("architecture", "async")
+                });
 
             _logger.LogInformation(
                 "Vote submission {SubmissionId} persisted and async command scheduled for poll {PollId}.",
