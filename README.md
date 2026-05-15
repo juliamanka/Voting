@@ -6,21 +6,15 @@ Backend prototype for a master's thesis comparing three communication styles in 
 - asynchronous event-driven processing,
 - hybrid processing with a synchronous core write and asynchronous projection/audit work.
 
-The solution is written in .NET 9 and uses ASP.NET Core, Entity Framework Core, PostgreSQL, MassTransit, RabbitMQ, SignalR, OpenTelemetry, Prometheus, Serilog, FluentValidation, AutoMapper, and NBomber.
+The solution is written in .NET 9 and uses ASP.NET Core, Entity Framework Core, PostgreSQL, MassTransit, RabbitMQ, SignalR, OpenTelemetry, Prometheus, FluentValidation, AutoMapper, and NBomber.
 
 ## Repository Layout
 
 ```text
 Voting/
 |-- Voting.sln
-|-- Voting.Api.Common/
-|   |-- ApiHostExtensions.cs          Shared API host setup
-|   |-- Contracts/Monitoring/         Shared monitoring DTOs
-|   |-- Controllers/                  Shared poll/result controller bases
-|   |-- Middleware/                   Global exception handling
-|   |-- RequestTiming/                Request timing context
-|   `-- ExceptionHandlingExtensions.cs
 |-- src/
+|   |-- Voting.Api.Common/            Shared API setup, controller bases, error handling, timing, monitoring DTOs
 |   |-- Voting.Domain/                Domain entities, enums, repository contracts
 |   |-- Voting.Application/           DTOs, validators, service interfaces and services
 |   |-- Voting.Infrastructure/        EF Core DbContext, migrations, repositories
@@ -105,6 +99,8 @@ worker
   -> consume CastVoteCommand
   -> write VoteRecord
   -> publish VoteRecordedEvent
+worker projection consumer
+  -> consume VoteRecordedEvent
   -> update projection and audit log
   -> publish PollResultsUpdatedEvent
 API
@@ -161,8 +157,7 @@ Health endpoints:
 
 SignalR hubs:
 
-- sync API: `/hubs/results` and `/hubs/votes`,
-- async and hybrid APIs: `/hubs/results`.
+- sync, async, and hybrid APIs: `/hubs/results`.
 
 ## Configuration
 
@@ -174,6 +169,8 @@ Important settings:
 - `RabbitMq:Host`, `RabbitMq:Username`, `RabbitMq:Password` - RabbitMQ connection for async and hybrid variants.
 - `Hosting:MetricsPort` - worker metrics listener port.
 - `Worker:ConcurrentMessageLimit`, `Worker:PrefetchCount` - worker throughput controls.
+- `Worker:ProjectionConcurrentMessageLimit`, `Worker:ProjectionPrefetchCount` - async projection consumer throughput controls.
+- `Worker:EnableProjectionProjector` - enable or disable the hybrid worker projection consumer.
 - `Chaos__ProjectionDelayMs` or `CHAOS_PROJECTION_DELAY_MS` - optional artificial projection delay for experiments.
 
 Default local ports:
@@ -224,7 +221,7 @@ dotnet run --project src/HybridVoting.Api/HybridVoting.Api.csproj
 dotnet run --project src/Hybrid.Worker/Hybrid.Worker.csproj
 ```
 
-Swagger is available when enabled by the running environment, for example `http://localhost:5001/swagger`.
+Swagger is available at `/swagger`. The asynchronous and hybrid APIs enable it unconditionally; the synchronous API enables it in the Development environment.
 
 ## Database
 
