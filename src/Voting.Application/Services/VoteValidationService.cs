@@ -11,18 +11,15 @@ public class VoteValidationService : IVoteValidationService
     private readonly IValidator<VoteRequest> _validator;
     private readonly IPollRepository _pollRepository;
     private readonly IVoteRepository _voteRepository;
-    private readonly IEligibilityService _eligibilityService;
 
     public VoteValidationService(
         IValidator<VoteRequest> validator,
         IPollRepository pollRepository,
-        IVoteRepository voteRepository,
-        IEligibilityService eligibilityService)
+        IVoteRepository voteRepository)
     {
         _validator = validator;
         _pollRepository = pollRepository;
         _voteRepository = voteRepository;
-        _eligibilityService = eligibilityService;
     }
 
     public async Task ValidateAsync(VoteRequest voteRequest, CancellationToken cancellationToken)
@@ -38,11 +35,6 @@ public class VoteValidationService : IVoteValidationService
         if (!poll.IsActive)
         {
             throw new PollInactiveException(voteRequest.PollId);
-        }
-
-        if (poll.RequiresEligibilityCheck)
-        {
-            await _eligibilityService.EnsureEligibleAsync(voteRequest.UserId!, cancellationToken);
         }
 
         var optionExists = poll.Options.Any(o => o.PollOptionId == voteRequest.PollOptionId);

@@ -16,8 +16,6 @@ public class Poll
 
     public bool IsActive { get; set; }
 
-    public bool RequiresEligibilityCheck { get; set; }
-
     public DateTime CreatedAt { get; set; }
 
     public virtual ICollection<VoteRecord> Votes { get; set; } = new HashSet<VoteRecord>();
@@ -26,6 +24,5 @@ public class Poll
     {
         CreatedAt = DateTime.UtcNow;
         IsActive = true;
-        RequiresEligibilityCheck = true;
     }
 }

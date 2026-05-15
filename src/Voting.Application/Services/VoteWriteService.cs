@@ -30,7 +30,7 @@ public class VoteWriteService : IVoteWriteService
             VoteId = Guid.NewGuid(),
             PollId = voteRequest.PollId,
             PollOptionId = voteRequest.PollOptionId,
-            UserId = voteRequest.UserId,
+            UserId = voteRequest.UserId!,
             Status = VoteStatus.Counted,
             Timestamp = DateTime.UtcNow
         };

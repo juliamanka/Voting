@@ -1,5 +1,6 @@
 using AsynchronousVoting.Worker.Messaging.Consumers;
 using MassTransit;
+using Npgsql;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using Voting.Application;
@@ -43,7 +44,7 @@ builder.Services.AddMassTransit(x =>
     x.AddConsumer<VoteRecordedEventConsumer>();
     x.AddEntityFrameworkOutbox<VotingDbContext>(o =>
     {
-        o.UseSqlServer();
+        o.UsePostgres();
         o.UseBusOutbox();
     });
 
@@ -61,7 +62,7 @@ builder.Services.AddMassTransit(x =>
         cfg.ReceiveEndpoint(VoteQueueNames.AsyncCastVoteQueue, e =>
         {
             e.UseEntityFrameworkOutbox<VotingDbContext>(context);
-            e.UseMessageRetry(ConfigureSqlTransientRetry);
+            e.UseMessageRetry(ConfigurePostgresTransientRetry);
 
             e.ConcurrentMessageLimit = workerConcurrency;
             e.PrefetchCount = workerPrefetch;
@@ -72,7 +73,7 @@ builder.Services.AddMassTransit(x =>
         cfg.ReceiveEndpoint(VoteQueueNames.AsyncVoteRecordedEventsQueue, e =>
         {
             e.UseEntityFrameworkOutbox<VotingDbContext>(context);
-            e.UseMessageRetry(ConfigureSqlTransientRetry);
+            e.UseMessageRetry(ConfigurePostgresTransientRetry);
 
             e.ConcurrentMessageLimit = projectionConcurrency;
             e.PrefetchCount = projectionPrefetch;
@@ -133,12 +134,9 @@ builder.Services.AddOpenTelemetry()
 var host = builder.Build();
 host.Run();
 
-static void ConfigureSqlTransientRetry(IRetryConfigurator retry)
+static void ConfigurePostgresTransientRetry(IRetryConfigurator retry)
 {
-    retry.Handle<Microsoft.Data.SqlClient.SqlException>(IsTransientSqlException);
-    retry.Handle<InvalidOperationException>(ex =>
-        ex.InnerException is Microsoft.Data.SqlClient.SqlException sqlException &&
-        IsTransientSqlException(sqlException));
+    retry.Handle<NpgsqlException>(ex => ex.IsTransient);
     retry.Handle<TimeoutException>();
     retry.Intervals(
         TimeSpan.FromMilliseconds(100),
@@ -146,10 +144,6 @@ static void ConfigureSqlTransientRetry(IRetryConfigurator retry)
         TimeSpan.FromMilliseconds(500));
 }
 
-static bool IsTransientSqlException(Microsoft.Data.SqlClient.SqlException exception)
-{
-    return exception.Number is 1205 or -2 or 4060 or 40197 or 40501 or 40613 or 49918 or 49919 or 49920;
-}
 
 static int ReadPositiveIntEnvironmentVariable(string name)
 {

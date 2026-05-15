@@ -157,9 +157,6 @@ public class CastVoteCommandConsumer : IConsumer<CastVoteCommand>
             case PollInactiveException pollInactiveException:
                 return new SubmissionFailure(VoteStatus.Rejected, pollInactiveException.Message);
 
-            case IneligibleVoterException ineligibleVoterException:
-                return new SubmissionFailure(VoteStatus.Rejected, ineligibleVoterException.Message);
-
             default:
                 return null;
         }

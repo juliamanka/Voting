@@ -22,7 +22,6 @@ public static class DependencyInjection
         services.AddScoped<IPollService, PollService>();
         services.AddScoped<IPollResultsReader, ProjectionPollResultsReader>();
         services.AddScoped<IVoteValidationService, VoteValidationService>();
-        services.AddScoped<IEligibilityService, EligibilityService>();
 
         return services;
     }

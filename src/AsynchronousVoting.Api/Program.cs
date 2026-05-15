@@ -50,7 +50,7 @@ builder.Services.AddMassTransit(x =>
 
     x.AddEntityFrameworkOutbox<VotingDbContext>(o =>
     {
-        o.UseSqlServer();
+        o.UsePostgres();
         o.UseBusOutbox();
         o.DisableInboxCleanupService(); 
     });

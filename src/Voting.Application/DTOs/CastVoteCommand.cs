@@ -10,7 +10,7 @@ public record CastVoteCommand
         Guid submissionId,
         Guid pollId,
         Guid pollOptionId,
-        string? userId,
+        string userId,
         DateTime requestStartedAtUtc,
         DateTime createdAtUtc)
     {
@@ -25,7 +25,7 @@ public record CastVoteCommand
     public Guid SubmissionId { get; init; }
     public Guid PollId { get; init; }
     public Guid PollOptionId { get; init; }
-    public string? UserId { get; init; }
+    public string UserId { get; init; } = string.Empty;
     public DateTime RequestStartedAtUtc { get; init; }
     public DateTime CreatedAtUtc { get; init; }
 }

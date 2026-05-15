@@ -4,7 +4,7 @@ public record VoteRecordedEvent(
     Guid VoteId,
     Guid PollId,
     Guid PollOptionId,
-    string? UserId,
+    string UserId,
     DateTime VoteRecordedAtUtc,
     DateTime RequestStartedAtUtc,
     DateTime PublishedAtUtc)

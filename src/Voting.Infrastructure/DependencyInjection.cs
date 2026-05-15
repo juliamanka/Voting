@@ -20,14 +20,13 @@ public static class DependencyInjection
 
         void ConfigureOptions(DbContextOptionsBuilder options)
         {
-            options.UseSqlServer(connectionString);
+            options.UseNpgsql(connectionString);
         }
 
         services.AddDbContext<VotingDbContext>(ConfigureOptions);
         
         services.AddScoped<IVoteRepository, VoteRepository>();
         services.AddScoped<IPollRepository, PollRepository>();
-        services.AddScoped<IVoterEligibilityRepository, VoterEligibilityRepository>();
         services.AddScoped<IPollResultsProjectionRepository, PollResultsProjectionRepository>();
 
         return services;

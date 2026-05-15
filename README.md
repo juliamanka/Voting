@@ -6,7 +6,7 @@ Backend prototype for a master's thesis comparing three communication styles in 
 - asynchronous event-driven processing,
 - hybrid processing with a synchronous core write and asynchronous projection/audit work.
 
-The solution is written in .NET 9 and uses ASP.NET Core, Entity Framework Core, SQL Server, MassTransit, RabbitMQ, SignalR, OpenTelemetry, Prometheus, Serilog, FluentValidation, AutoMapper, and NBomber.
+The solution is written in .NET 9 and uses ASP.NET Core, Entity Framework Core, PostgreSQL, MassTransit, RabbitMQ, SignalR, OpenTelemetry, Prometheus, Serilog, FluentValidation, AutoMapper, and NBomber.
 
 ## Repository Layout
 
@@ -39,9 +39,9 @@ Generated outputs such as `bin/`, `obj/`, `.idea/`, `.DS_Store`, `test_results/`
 
 | Project | Responsibility |
 | --- | --- |
-| `Voting.Domain` | Core entities for polls, options, vote records, vote submissions, eligibility, audit logs, and read-model projections. |
+| `Voting.Domain` | Core entities for polls, options, vote records, vote submissions, audit logs, and read-model projections. |
 | `Voting.Application` | Application services, DTOs, validation, mapping, and queue naming. |
-| `Voting.Infrastructure` | SQL Server persistence, EF Core migrations, repository implementations, and MassTransit outbox entities. |
+| `Voting.Infrastructure` | PostgreSQL persistence, EF Core migrations, repository implementations, and MassTransit outbox entities. |
 | `Voting.Api.Common` | Shared API setup, error handling, timing, monitoring contracts, and base controllers. |
 | `SynchronousVoting.Api` | Baseline API-only variant. Vote validation, durable write, projection update, audit write, and response happen in one request. |
 | `AsynchronousVoting.Api` | Event-driven API variant. The API accepts a vote submission and queues work for background processing. |
@@ -75,8 +75,8 @@ Default URL: `http://localhost:5001`
 ```text
 POST /api/vote
   -> validate vote
-  -> check eligibility and duplicates
-  -> write VoteRecord to SQL Server
+  -> check duplicate vote for the same user and poll
+  -> write VoteRecord to PostgreSQL
   -> update projection and audit log
   -> send SignalR result update
   -> return VoteResponse
@@ -128,7 +128,7 @@ Default worker metrics URL: `http://localhost:9284/metrics`
 ```text
 POST /api/vote
   -> validate vote
-  -> write VoteRecord to SQL Server
+  -> write VoteRecord to PostgreSQL
   -> publish VoteRecordedEvent through the outbox
   -> return VoteResponse
 worker
@@ -170,7 +170,7 @@ Local configuration can be provided through ignored `appsettings.json` files or 
 
 Important settings:
 
-- `ConnectionStrings:DefaultConnection` - SQL Server connection string.
+- `ConnectionStrings:DefaultConnection` - PostgreSQL connection string.
 - `RabbitMq:Host`, `RabbitMq:Username`, `RabbitMq:Password` - RabbitMQ connection for async and hybrid variants.
 - `Hosting:MetricsPort` - worker metrics listener port.
 - `Worker:ConcurrentMessageLimit`, `Worker:PrefetchCount` - worker throughput controls.
@@ -185,7 +185,7 @@ Default local ports:
 | Hybrid API | `5003` |
 | Asynchronous worker metrics | `9184` |
 | Hybrid worker metrics | `9284` |
-| SQL Server | `1433` |
+| PostgreSQL | `5432` |
 | RabbitMQ | `5672` |
 
 ## Local Setup
@@ -193,7 +193,7 @@ Default local ports:
 Prerequisites:
 
 - .NET 9 SDK,
-- SQL Server,
+- PostgreSQL,
 - RabbitMQ for async and hybrid variants,
 - optional Prometheus/Grafana for metrics collection.
 
@@ -232,7 +232,6 @@ The application applies EF Core migrations during startup through `app.ApplyMigr
 
 - polls and poll options,
 - votes and async vote submissions,
-- voter eligibility records,
 - vote audit logs,
 - projection tables,
 - MassTransit transactional inbox/outbox tables.

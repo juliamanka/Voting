@@ -30,7 +30,7 @@ public class VoteSubmissionPublisher : IVoteSubmissionPublisher
         _logger = logger;
     }
 
-    public async Task<Guid> SubmitVoteAsync(Guid pollId, Guid optionId, string? userId, CancellationToken ct)
+    public async Task<Guid> SubmitVoteAsync(Guid pollId, Guid optionId, string userId, CancellationToken ct)
     {
         using var transaction = await _dbContext.Database.BeginTransactionAsync(ct);
 

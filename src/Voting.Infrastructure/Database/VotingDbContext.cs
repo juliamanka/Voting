@@ -14,7 +14,6 @@ public class VotingDbContext : DbContext
     public DbSet<VoteRecord> Votes { get; set; }
     public DbSet<VoteSubmission> VoteSubmissions { get; set; }
     public DbSet<Poll> Polls { get; set; }
-    public DbSet<VoterEligibility> VoterEligibilities { get; set; }
     public DbSet<VoteAuditLog> VoteAuditLogs { get; set; }
     public DbSet<PollResultsProjection> PollResultsProjections { get; set; }
     public DbSet<PollOptionResultsProjection> PollOptionResultsProjections { get; set; }
@@ -30,7 +29,6 @@ public class VotingDbContext : DbContext
             entity.Property(p => p.Question).IsRequired().HasMaxLength(500);
 
             entity.Property(p => p.IsActive).HasDefaultValue(true);
-            entity.Property(p => p.RequiresEligibilityCheck).HasDefaultValue(true);
         });
 
         modelBuilder.Entity<VoteRecord>(entity =>
@@ -39,8 +37,11 @@ public class VotingDbContext : DbContext
             entity.HasIndex(v => v.PollId, "IX_Votes_PollId");
 
             entity.HasIndex(v => new { v.PollId, v.UserId }, "IX_Votes_PollId_UserId")
-                .IsUnique()
-                .HasFilter("[UserId] IS NOT NULL");
+                .IsUnique();
+
+            entity.Property(v => v.UserId)
+                .IsRequired()
+                .HasMaxLength(256);
 
             entity.Property(v => v.Status)
                 .HasConversion<string>()
@@ -74,6 +75,10 @@ public class VotingDbContext : DbContext
             entity.Property(v => v.FailureReason)
                 .HasMaxLength(512);
 
+            entity.Property(v => v.UserId)
+                .IsRequired()
+                .HasMaxLength(256);
+
             entity.HasIndex(v => v.Status, "IX_VoteSubmissions_Status");
         });
 
@@ -87,15 +92,6 @@ public class VotingDbContext : DbContext
                 .WithMany(p => p.Options)
                 .HasForeignKey(po => po.PollId)
                 .OnDelete(DeleteBehavior.Cascade);
-        });
-
-        modelBuilder.Entity<VoterEligibility>(entity =>
-        {
-            entity.ToTable("VoterEligibilities");
-            entity.HasKey(v => v.UserId);
-            entity.Property(v => v.UserId).HasMaxLength(256);
-            entity.Property(v => v.IsEligible).HasDefaultValue(true);
-            entity.Property(v => v.EligibilitySource).HasMaxLength(64);
         });
 
         modelBuilder.Entity<VoteAuditLog>(entity =>
@@ -149,7 +145,6 @@ public class VotingDbContext : DbContext
                 PollId = pollId,
                 Question = "Która architektura jest najwydajniejsza dla systemu głosowania?",
                 IsActive = true,
-                RequiresEligibilityCheck = true,
                 CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
             },
             new Poll
@@ -157,7 +152,6 @@ public class VotingDbContext : DbContext
                 PollId = poll2Id,
                 Question = "Który kanał aktualizacji wyników najlepiej wspiera aplikacje czasu rzeczywistego?",
                 IsActive = true,
-                RequiresEligibilityCheck = true,
                 CreatedAt = new DateTime(2024, 1, 2, 0, 0, 0, DateTimeKind.Utc)
             },
             new Poll
@@ -165,7 +159,6 @@ public class VotingDbContext : DbContext
                 PollId = poll3Id,
                 Question = "Która strategia obsługi przeciążenia jest najbardziej akceptowalna dla użytkownika?",
                 IsActive = true,
-                RequiresEligibilityCheck = true,
                 CreatedAt = new DateTime(2024, 1, 3, 0, 0, 0, DateTimeKind.Utc)
             });
 

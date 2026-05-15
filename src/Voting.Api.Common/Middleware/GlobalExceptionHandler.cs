@@ -71,11 +71,6 @@ public sealed class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logge
                 detail = duplicateVoteException.Message;
                 break;
 
-            case IneligibleVoterException ineligibleVoterException:
-                status = StatusCodes.Status403Forbidden;
-                title = "Voter is not eligible";
-                detail = ineligibleVoterException.Message;
-                break;
         }
 
         var problemDetails = new ProblemDetails

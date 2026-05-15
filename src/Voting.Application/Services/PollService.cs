@@ -31,8 +31,7 @@ public class PollService : IPollService
                 OrderIndex = o.OrderIndex
             }).ToList(),
             PollId = p.PollId,
-            Question = p.Question,
-            RequiresEligibilityCheck = p.RequiresEligibilityCheck
+            Question = p.Question
         }).ToList();
 
         return pollDtos;
@@ -53,8 +52,7 @@ public class PollService : IPollService
                 Text = o.Text,
                 OrderIndex = o.OrderIndex
             }).ToList(),
-            Question = poll.Question,
-            RequiresEligibilityCheck = poll.RequiresEligibilityCheck
+            Question = poll.Question
         };
     }
 

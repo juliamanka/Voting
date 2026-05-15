@@ -17,7 +17,7 @@ public class VoteRequestValidator : AbstractValidator<VoteRequest>
 
         RuleFor(v => v.UserId)
             .NotEmpty()
-            .WithMessage("UserId is required for eligibility verification.")
+            .WithMessage("UserId is required to prevent duplicate votes in a poll.")
             .MaximumLength(256)
             .WithMessage("UserId cannot exceed 256 characters.");
     }

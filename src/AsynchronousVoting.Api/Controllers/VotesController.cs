@@ -34,7 +34,7 @@ public class VotesController : ControllerBase
     {
         await _voteValidationService.ValidateAsync(request, ct);
 
-        var submissionId = await _voteSubmissionPublisher.SubmitVoteAsync(request.PollId, request.PollOptionId, request.UserId, ct);
+        var submissionId = await _voteSubmissionPublisher.SubmitVoteAsync(request.PollId, request.PollOptionId, request.UserId!, ct);
 
         return Accepted(new VoteAcceptedResponse
         {

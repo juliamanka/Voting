@@ -46,7 +46,7 @@ builder.Services.AddMassTransit(x =>
     x.AddConsumer<PollResultsUpdatedEventConsumer>();
     x.AddEntityFrameworkOutbox<VotingDbContext>(o =>
     {
-        o.UseSqlServer();
+        o.UsePostgres();
         o.UseBusOutbox();
         o.DisableInboxCleanupService();
     });

@@ -34,7 +34,7 @@ builder.Services.AddVotingOpenTelemetry(serviceName, "SynchronousVoting.Api.Metr
 
 builder.Services.AddHealthChecks()
     .AddCheck("self", () => HealthCheckResult.Healthy(), tags: new[] { "live" })
-    .AddSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")!,
+    .AddNpgSql(builder.Configuration.GetConnectionString("DefaultConnection")!,
         name: "database",
         tags: new[] { "ready" });
 

@@ -14,8 +14,9 @@ public class VoteSubmission
     [Required]
     public Guid PollOptionId { get; set; }
 
+    [Required]
     [MaxLength(256)]
-    public string? UserId { get; set; }
+    public string UserId { get; set; } = string.Empty;
 
     [Required]
     [MaxLength(32)]

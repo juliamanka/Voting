@@ -142,9 +142,9 @@ public static class ApiHostExtensions
 
         return services
             .AddHealthChecks()
-            .AddSqlServer(
+            .AddNpgSql(
                 connectionString: connectionString,
-                name: "sqlserver");
+                name: "postgres");
     }
 
     public static IEndpointConventionBuilder MapVotingJsonHealthChecks(

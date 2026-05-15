@@ -15,8 +15,9 @@ public class VoteRecord
     [Required]
     public Guid PollOptionId { get; set; }
 
+    [Required]
     [MaxLength(256)]
-    public string? UserId { get; set; }
+    public string UserId { get; set; } = string.Empty;
 
     public VoteStatus Status { get; set; }
 
